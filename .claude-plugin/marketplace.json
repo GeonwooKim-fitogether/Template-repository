@@ -41,6 +41,11 @@
       "description": "Remove AI writing patterns from text and rewrite in a natural, human voice — eliminating the 33+ telltale signs of AI-generated content including em-dash overuse, sycophantic openers, hedge stacking, and manufactured drama. Use this skill when the user wants to make text sound more natural or less AI-generated."
     },
     {
+      "name": "new-project",
+      "source": "./plugins/new-project",
+      "description": "현재 프로젝트(repo)에 FITogether 공용 스킬 모음(fitogether-tools 마켓플레이스)을 한 번에 연결한다. 사용자가 \"새 프로젝트 세팅\", \"이 repo에 스킬 추가\", \"fitogether 스킬 깔아줘\", \"스킬 세팅\", \"/new-project\" 라고 하면 이 스킬을 사용한다. .claude/settings.json 을 생성/병합해서 마켓플레이스를 등록하고 모든 공용 스킬을 활성화한 뒤, 원하면 커밋까지 한다."
+    },
+    {
       "name": "remotion",
       "source": "./plugins/remotion",
       "description": "Guidance for building programmatic videos with Remotion (React-based video framework). Corrects common AI mistakes in animation timing, audio sync, composition structure, and media handling. Use this skill for any Remotion video development task."
