@@ -1,0 +1,16 @@
+{
+  "name": "fitogether-tools",
+  "owner": { "name": "FITogether", "email": "geonwoo.kim@fitogether.com" },
+  "plugins": [
+    { "name": "andrepathy",     "source": "./plugins/andrepathy",     "description": "Karpathy 4규칙 — 코딩 전 질문, 단순성, 외과적 수정, 목표 기반 실행" },
+    { "name": "claude-video",   "source": "./plugins/claude-video",   "description": "YouTube/영상 다운로드 → 프레임·자막 추출 → 멀티모달 분석" },
+    { "name": "superpower",     "source": "./plugins/superpower",     "description": "스펙→계획→TDD→코드 순서 강제 (시니어 워크플로우)" },
+    { "name": "understand",     "source": "./plugins/understand",     "description": "코드베이스 스캔 → 지식 그래프 → 아키텍처 시각화" },
+    { "name": "agent-memory",   "source": "./plugins/agent-memory",   "description": "세션 간 영속 메모리 저장·검색 (daily/long-term/scratchpad)" },
+    { "name": "skill-creator",  "source": "./plugins/skill-creator",  "description": "스킬 제작·테스트·평가·패키징 워크플로우 (Anthropic 공식)" },
+    { "name": "remotion",       "source": "./plugins/remotion",       "description": "Remotion 타이밍·오디오·컴포지션 오류 교정" },
+    { "name": "frontend-design","source": "./plugins/frontend-design","description": "AI 슬롭 방지 UI 디자인 가이드 (Anthropic 공식)" },
+    { "name": "humanizer",      "source": "./plugins/humanizer",      "description": "AI 문체 33가지 패턴 제거 + 개인 스타일 재작성" },
+    { "name": "find-skill",     "source": "./plugins/find-skill",     "description": "4800+ 스킬 카탈로그에서 목적별 스킬 검색·추천" }
+  ]
+}
