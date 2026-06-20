@@ -82,6 +82,9 @@ reads | feeds | woken-by | wakes`), `label` (the concrete function/mechanism, e.
 over volume, but do not stop at one edge per file.
 
 Also populate these top-level keys consumed by the template:
+- `meta.model` — the firmware's product/model name (e.g. `Cell Y1`, `STM32-BMS`). Rendered as a
+  badge next to the "Firmware Explorer" title and in the browser tab, so the deliverable is
+  self-identifying. Always set it.
 - `meta.sub` — one-line project descriptor shown under the title.
 - `meta.subsystems` — **REQUIRED for a clean output.** The subsystem palette + display labels,
   in display order: `{ "<key>": ["<label>", "<#hexcolor>"], ... }`. The keys MUST be exactly the
