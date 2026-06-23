@@ -1,6 +1,6 @@
 name: FITogether 스킬 동기화
 
-# 이 repo의 .claude/skills/ 를 FITogether 스킬 창고(fitogether-claude-tools)와
+# 이 repo의 .claude/skills/ 를 FITogether 스킬 창고(Template-repository)와
 # 주기적으로 맞춘다. 창고에서 스킬이 추가/수정/삭제되면, 이 봇이 알아서 가져와
 # 커밋하므로 사람이 손댈 일이 없다.
 #
@@ -26,7 +26,7 @@ jobs:
         run: |
           rm -rf .skills-src
           git clone --depth 1 \
-            https://github.com/geonwookim-fitogether/fitogether-claude-tools .skills-src
+            https://github.com/geonwookim-fitogether/Template-repository .skills-src
           mkdir -p .claude/skills
           # 창고의 스킬을 이 repo로 복사(덮어쓰기). 이 repo만의 커스텀 스킬은 건드리지 않는다.
           cp -a .skills-src/.claude/skills/. .claude/skills/
