@@ -19,9 +19,16 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGINS_DIR = ROOT / "plugins"
 README = ROOT / "README.md"
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
+# 새 프로젝트 repo에 그대로 복사해 넣을 표준 시드. 템플릿 repo의 내용물이기도 하다.
+TEMPLATE_DIR = ROOT / "templates" / "new-repo"
+TEMPLATE_SETTINGS = TEMPLATE_DIR / ".claude" / "settings.json"
 
 MARKETPLACE_NAME = "fitogether-tools"
 REPO = "geonwookim-fitogether/fitogether-claude-tools"
+
+# 새 프로젝트에 기본으로 켜지 않을 "세팅 전용" 메타 스킬.
+# (이 스킬들은 repo를 세팅하는 도구라, 일반 프로젝트에서 상시 켜둘 필요가 없다.)
+SETUP_ONLY_SKILLS = {"new-project", "vendor-skills"}
 
 # README 안에서 자동 생성 구간을 표시하는 마커
 START = "<!-- SKILLS:START (자동 생성 구간 - 직접 수정하지 마세요) -->"
@@ -74,6 +81,28 @@ def build_marketplace(skills: list[dict]) -> str:
             {"name": s["name"], "source": s["source"], "description": s["description"]}
             for s in skills
         ],
+    }
+    return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+
+
+def build_settings(skills: list[dict]) -> str:
+    """새 프로젝트 repo용 표준 .claude/settings.json 을 만든다.
+
+    마켓플레이스를 등록하고, 세팅 전용 메타 스킬을 뺀 모든 스킬을 활성화한다.
+    스킬을 추가/삭제하면 이 목록이 자동으로 따라가므로 손댈 곳이 없다.
+    """
+    enabled = {
+        f"{s['name']}@{MARKETPLACE_NAME}": True
+        for s in skills
+        if s["name"] not in SETUP_ONLY_SKILLS
+    }
+    data = {
+        "extraKnownMarketplaces": {
+            MARKETPLACE_NAME: {
+                "source": {"source": "github", "repo": REPO}
+            }
+        },
+        "enabledPlugins": enabled,
     }
     return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
 
@@ -222,11 +251,17 @@ def main():
     new_marketplace = build_marketplace(skills)
     skills_section = build_skills_section(skills)
     new_readme = build_full_readme(skills_section)
+    new_settings = build_settings(skills)
 
     old_marketplace = MARKETPLACE.read_text(encoding="utf-8") if MARKETPLACE.exists() else ""
     old_readme = README.read_text(encoding="utf-8") if README.exists() else ""
+    old_settings = TEMPLATE_SETTINGS.read_text(encoding="utf-8") if TEMPLATE_SETTINGS.exists() else ""
 
-    changed = (new_marketplace != old_marketplace) or (new_readme != old_readme)
+    changed = (
+        new_marketplace != old_marketplace
+        or new_readme != old_readme
+        or new_settings != old_settings
+    )
 
     if check_only:
         if changed:
@@ -238,7 +273,9 @@ def main():
     MARKETPLACE.parent.mkdir(parents=True, exist_ok=True)
     MARKETPLACE.write_text(new_marketplace, encoding="utf-8")
     README.write_text(new_readme, encoding="utf-8")
-    print("✨ README.md, marketplace.json 갱신 완료" if changed else "변경 사항 없음")
+    TEMPLATE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    TEMPLATE_SETTINGS.write_text(new_settings, encoding="utf-8")
+    print("✨ README.md, marketplace.json, 템플릿 settings.json 갱신 완료" if changed else "변경 사항 없음")
 
 
 if __name__ == "__main__":
