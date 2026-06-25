@@ -28,6 +28,7 @@
   figure { margin:16px 0; padding:14px 14px 10px; text-align:center; break-inside:avoid;
            background:#f6faf8; border:1px solid #dce7e3; border-radius:10px; box-shadow:0 1px 3px rgba(17,64,58,.06); }
   figcaption { font-size:8.8pt; color:#51605c; margin-top:9px; line-height:1.5; }
+  figure img.shot { max-width:100%; border-radius:6px; border:1px solid #d4ddda; background:#fff; }   /* real screenshots (demos/UI) */
 
   /* ===== SVG diagram style (see reference/svg-diagrams.md — DEFINE every color class you use) ===== */
   .dg { width:100%; height:auto; display:block; }
@@ -68,6 +69,7 @@
   #lightbox{position:fixed;inset:0;background:rgba(8,20,17,.93);display:none;align-items:center;justify-content:center;z-index:9999;cursor:zoom-out;overflow:auto;padding:20px;}
   #lightbox.on{display:flex;}
   #lb-content svg{width:min(1500px,95vw);height:auto;background:#fff;border-radius:8px;padding:16px;box-shadow:0 10px 50px rgba(0,0,0,.5);}
+  #lb-content img{max-width:95vw;max-height:92vh;border-radius:8px;box-shadow:0 10px 50px rgba(0,0,0,.5);}
   #lb-close{position:fixed;top:12px;right:22px;color:#fff;font-size:28px;font-weight:700;cursor:pointer;z-index:10000;opacity:.85;line-height:1;}
 </style>
 </head>
@@ -171,7 +173,7 @@
 (function(){
   var lb=document.getElementById('lightbox'), c=document.getElementById('lb-content');
   function close(){ lb.classList.remove('on'); c.innerHTML=''; }
-  document.querySelectorAll('figure svg').forEach(function(el){
+  document.querySelectorAll('figure svg, figure img').forEach(function(el){
     el.addEventListener('click', function(e){ e.stopPropagation(); c.innerHTML=''; c.appendChild(el.cloneNode(true)); lb.classList.add('on'); });
   });
   lb.addEventListener('click', close);

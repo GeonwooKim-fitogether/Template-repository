@@ -45,15 +45,22 @@ Write `분석.html` using `reference/document-template.html` as the skeleton. Tw
 
 **(a) Document architecture — Top-down, easy→hard, STEP-segmented.** Brief the reader like a CEO: conclusion first, details last. Number the sections as **STEPs**, each tagged with audience + reading time (e.g. `누구나 · 30초`, `실무 · 어려움`) so they stop at the depth they need. A clickable TOC + STEP banners + appendix replace collapsibles (PDF can't collapse). Typical flow: STEP 0 (30초 결론) → STEP 1 (큰 그림 + 대표 도식) → STEP 2 (핵심 개념) → STEP 3…N (단계별 심층, 도식 + 설명을 *풀어서* 서술 + "왜 중요한가") → 실습 재현 → 적용 포인트(사용자 맥락) → 부록. **Preserve detail** — expand explanations into prose; do not compress to bullet skeletons.
 
-**(b) Reconstruct diagrams as inline SVG — the core of this skill.** Do NOT paste cropped screenshots. Understand each diagram and **redraw it as clean inline SVG** in the document palette. See `reference/svg-diagrams.md` for the shared style, the global arrowhead marker, node-color classes, and worked patterns (box-grid / flow / tree / node-link graph). Reconstruct demo screenshots too (redraw the graph structure). This single choice removes webcam/subtitle/low-res/cutoff problems, unifies design, makes text selectable, and makes the HTML self-contained.
+**(b) Choose each figure's medium by WHERE THE VALUE LIVES — this is the core judgment of this skill.** Two media, two jobs:
+- **Concept / structure → reconstruct as inline SVG.** Architectures, taxonomies, workflows, relationships, mental models the speaker conveys verbally, or a slide that is itself a diagram. Redraw it clean in the document palette. See `reference/svg-diagrams.md` (shared style, global arrowhead marker, node-color classes, patterns: box-grid / flow / tree / node-link graph).
+- **The actual thing → use the REAL captured frame, cleaned only.** Live UI, the product/result, before→after, "proof it actually works." For a screencast/demo, **the screenshot IS the content** — it shows the real software running. Crop off the webcam/subtitle bar/overlay, but **do NOT redraw it into abstract boxes** — that "각색" kills the authenticity and impact (this was a real failure: a tutorial reconstructed as SVG felt dead). Treatment = clean crop only (no heavy annotation). Base64-inline it (see `reference/pipeline.md` §6) so the HTML stays self-contained.
 
-Give every conceptual STEP at least one figure; never leave a concept text-only when a diagram illustrates it. Wrap each `<figure>` in the consistent accent-tinted card.
+**Content-type default:**
+- **Slide / whiteboard lecture** (e.g. an architecture talk) → SVG-heavy; the slides are diagrams worth redrawing.
+- **Screencast / demo / tutorial / product walkthrough** → **real-capture-heavy**; use cleaned screenshots for every "show the actual screen" moment, and SVG ONLY for the overview/workflow and concepts the video never shows cleanly.
+- Most docs are a **hybrid**: SVG for the mental model, real screenshots for the demos/results. Decide per figure.
+
+Give every conceptual STEP at least one figure; never leave a concept text-only when a diagram or screenshot illustrates it. Wrap each `<figure>` (SVG or `<img class="shot">`) in the consistent accent-tinted card.
 
 ### Step 7 — Render the PDF + deliver interactive HTML
 Per `reference/pipeline.md`:
 - The template is **landscape A4** in `@media print` (video is 16:9 — portrait crams/cuts it) and a comfortable web layout + **click-to-zoom lightbox** in `@media screen`.
 - Render with **`chrome --headless=new … --print-to-pdf`** to an **absolute temp path**, then copy into the destination (old headless drops to 1 page; writing directly into the Drive/bracketed folder hits `액세스 거부`; Chrome can *read* input from there fine).
-- Inline-SVG HTML is **already self-contained** — deliver `분석.html` as-is (no base64, no `figures/`, no `.source.html`). Only base64-inline if you fell back to raster `<img>`.
+- Pure inline-SVG HTML is self-contained as-is. If you used any real screenshots (`<img class="shot">`), **base64-inline them** (pipeline.md §6) so the delivered `분석.html` stays portable (0 `src="shots/"` / `src="frames/"` left). Verify `data:image` count == screenshot count.
 
 ### Step 8 — Verify before delivering
 - pypdf: confirm **landscape** + sane page count.
@@ -64,7 +71,7 @@ Append the row to `00_README.md`. Tell the user the folder layout: `[교육자�
 
 ## Key Principles (the why)
 
-- **Reconstruction > screenshots.** A redrawn SVG is the difference between "pasted video frames" and "a designed textbook." It is the highest-leverage quality decision in this skill. Accuracy depends on first *understanding* the original diagram in hi-res.
+- **Right medium per figure — concept vs. reality.** Redrawn SVG turns a slide diagram into a designed textbook; but for a live demo, the real screenshot is the value — it proves the software actually works, and abstracting it into boxes kills the impact. Ask each time: "is the value the CONCEPT (→ SVG) or seeing the ACTUAL screen (→ cleaned capture)?" Either way, accuracy comes from first *looking* at the hi-res frame.
 - **Progressive depth.** Readers have different needs; the STEP/audience-tag structure lets one document serve a CEO (STEP 0–1) and an implementer (through the appendix). Order easy→hard, conclusion-first.
 - **Detail is the point.** This is a learning artifact, not a teaser. Expand the speaker's reasoning; keep the actionable specifics (queries, schemas, parameters).
 - **Robust over clever.** Most failures are environmental (platform, encoding, rate-limits, file paths). Follow the `reference/pipeline.md` gotchas literally.

@@ -78,8 +78,8 @@ PY
 ```
 Then **open each `p_NN.png` and look**. Catch: solid-black boxes (an SVG element used an undefined CSS color class), overlapping/clipped labels, off-page figures. Fix the `분석.html` SVG and re-render.
 
-## 6. Fallback only: raster frames
-If you must embed a screenshot (e.g. a photo a diagram can't represent), edit it with Pillow (crop out webcam corner + subtitle bar; fully overshoot the webcam so no hair sliver remains; audit every one), then **base64-inline** it so the HTML stays self-contained:
+## 6. Real screenshots (demos / live UI / results) — clean crop + inline
+For "show the actual screen" figures (screencast/demo/tutorial — see SKILL.md Step 6b), embed the **real captured frame**, not a redrawn version. Re-extract the moment at 1280px, then with Pillow **crop off the subtitle bar / webcam / overlay only** (clean treatment — keep the authentic look; no heavy annotation). Pick the subtitle-free region; if subtitle is white text over content, crop to the part of the frame above it. Then **base64-inline** so the HTML stays self-contained:
 ```python
 import base64, re, pathlib
 html = pathlib.Path("분석.html").read_text(encoding="utf-8")

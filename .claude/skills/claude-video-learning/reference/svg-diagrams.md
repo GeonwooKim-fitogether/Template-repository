@@ -1,6 +1,8 @@
 # SVG Diagram Reconstruction — patterns & shared style
 
-The core craft of this skill: **understand each source diagram (in hi-res), then redraw it as clean inline SVG** in the document palette. Crisp at any zoom, on-brand, no webcam/subtitle/cutoff, text selectable, HTML self-contained.
+**Use this for CONCEPT/STRUCTURE figures** (architectures, taxonomies, workflows, relationships, mental models). For "show the actual screen" figures — live UI, product/result, before→after in a screencast/demo — **do NOT redraw; use a cleaned real screenshot** instead (SKILL.md Step 6b · pipeline.md §6). Reconstructing a live demo into boxes kills its authenticity.
+
+The core craft for the SVG path: **understand each source diagram (in hi-res), then redraw it as clean inline SVG** in the document palette. Crisp at any zoom, on-brand, no webcam/subtitle/cutoff, text selectable, HTML self-contained.
 
 ## Rules
 
