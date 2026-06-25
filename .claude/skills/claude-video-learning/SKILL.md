@@ -39,6 +39,7 @@ Follow `reference/pipeline.md` exactly. The non-obvious, hard-won rules:
 ### Step 5 — Understand deeply (this is where quality comes from)
 - **Read the frames densely** (most of them for slide/lecture/demo content) and the **full transcript in chunks**. You cannot redraw a diagram you have not actually looked at in hi-res.
 - Note the video's logical structure (its natural sections become your STEPs) and list the diagrams worth reconstructing.
+- **Capture the resource list — for a tutorial this IS the payoff.** The specific **tools / sites / URLs** the video names are the actionable core, but they hide where auto-captions can't reach: the **full video description**, the **pinned comment / linked guide**, and the **on-screen end-card** ("툴 바로가기"). Auto-captions mangle brand names (real example: caption "디자인 스펠스 워브 포트폴리오스" = `designspells.com` + `walloffportfolios.com`; "21st.dev" never appeared in the captions at all). So: read the **full `description`** (info-json, not just the head), re-extract & read the frames showing URLs/end-cards, and **verify exact spellings**. **Never genericize or guess a brand/URL from a garbled caption** — a real failure was guessing "Awwwards" instead of the creator's actual `designspells.com` / `walloffportfolios.com` / `21st.dev`. If you genuinely can't verify a name, say so rather than invent one.
 
 ### Step 6 — Author the educational document
 Write `분석.html` using `reference/document-template.html` as the skeleton. Two pillars:
@@ -55,6 +56,8 @@ Write `분석.html` using `reference/document-template.html` as the skeleton. Tw
 - Most docs are a **hybrid**: SVG for the mental model, real screenshots for the demos/results. Decide per figure.
 
 Give every conceptual STEP at least one figure; never leave a concept text-only when a diagram or screenshot illustrates it. Wrap each `<figure>` (SVG or `<img class="shot">`) in the consistent accent-tinted card.
+
+**Include a 도구·참고 사이트 (바로가기) table** — list every tool/site/URL the video names (verbatim, exact spelling). For a tutorial this is the single most-used part of the doc. Put it in the appendix, and surface key sites inline at the STEP where each is used. Dropping these is critical-level data loss, not a cosmetic omission.
 
 ### Step 7 — Render the PDF + deliver interactive HTML
 Per `reference/pipeline.md`:
@@ -77,6 +80,7 @@ Append the row to `00_README.md`. Tell the user the folder layout: `[교육자�
 - **Detail is the point.** This is a learning artifact, not a teaser. Expand the speaker's reasoning; keep the actionable specifics (queries, schemas, parameters).
 - **Robust over clever.** Most failures are environmental (platform, encoding, rate-limits, file paths). Follow the `reference/pipeline.md` gotchas literally.
 - **Verify what's silent.** Always rasterize and look — SVG/render bugs don't throw.
+- **Specifics over guesses — capture, don't genericize.** Named tools, sites, URLs, prompts, and parameters are the actionable payoff (especially for tutorials). Take them verbatim from the description / pinned comment / on-screen end-card, not from garbled auto-captions. Inventing a plausible-but-wrong brand/URL is worse than omitting it — and omitting the resource list entirely is critical data loss.
 
 ## Notes
 - Best for talks/lectures/tutorials/demos under ~30 min. For longer, lean on sparse frames + transcript and reconstruct only the hero diagrams.

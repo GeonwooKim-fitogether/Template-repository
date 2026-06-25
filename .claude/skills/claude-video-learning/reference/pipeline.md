@@ -27,7 +27,7 @@ The merged file is **not guaranteed `.mp4`** (often `.webm`/`.mkv`). Detect it:
 ```bash
 VID=$(ls <WORK>/video.* | grep -vE '\.(json|vtt|srt)$' | head -1)
 ```
-Read title/duration/auto-caption languages from `video.info.json` (UTF-8 — parse the file, the terminal may garble it).
+Read title/duration/auto-caption languages from `video.info.json` (UTF-8 — parse the file, the terminal may garble it). **Also read the full `description`** (`d['description']`, not just the first lines) and pull any URLs from it — the description + pinned comment hold the tool/site links the tutorial relies on, which **auto-captions mangle** (brand names come through garbled or missing). Dump it to a UTF-8 file and read it: `pathlib.Path('desc.txt').write_text(d.get('description') or '', encoding='utf-8')`.
 
 ## 2. Frames
 Density by duration: <2min ~2fps · 2–10min ~1fps · 10–30min 1/30s · >30min ~100 frames total. Max 512px for the reading pass:
