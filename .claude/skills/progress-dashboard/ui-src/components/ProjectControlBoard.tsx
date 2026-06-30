@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { TOKENS } from "../styles/atlassianTokens";
 import { BoardLane } from "./BoardLane";
 import { FlowOverlay } from "./FlowOverlay";
@@ -120,28 +120,35 @@ export function ProjectControlBoard({
     [groupMode, lanes, tickets, agents],
   );
 
-  // Flow 연결 id — Phase view 면 same-lane 만 통과시켜 cross-swimlane 그림 방지.
-  // relatedIds 는 focused id 자기 자신을 포함 (dim 처리용) — flow 에서는 제외.
+  // Flow 연결 id — focused 카드 ↔ 관련 카드. Phase / Agent 양쪽 모두 cross-lane
+  // 연결을 그린다 (관련 카드가 다른 swimlane 에 있어도 backlink 를 표시). relatedIds
+  // 는 focused id 자기 자신을 포함 (dim 처리용) — flow 에서는 제외.
   const flowIds = useMemo<Set<string>>(() => {
     if (flowMode !== "on" || !focusedTicketId || relatedIds.size === 0) {
       return new Set<string>();
     }
-    const focused = tickets.find((t) => t.id === focusedTicketId);
-    if (!focused) return new Set<string>();
     const filtered = new Set<string>();
     relatedIds.forEach((rid) => {
-      if (rid === focusedTicketId) return; // self-curve 방지
-      if (groupMode === "agent") {
-        filtered.add(rid);
-        return;
-      }
-      const r = tickets.find((t) => t.id === rid);
-      if (r && r.lane === focused.lane) filtered.add(rid);
+      if (rid !== focusedTicketId) filtered.add(rid); // self-curve 방지
     });
     return filtered;
-  }, [flowMode, groupMode, focusedTicketId, relatedIds, tickets]);
+  }, [flowMode, focusedTicketId, relatedIds]);
 
   const flowContainerRef = useRef<HTMLDivElement>(null);
+
+  // When a card is focused (drawer opens + board narrows), scroll that card to
+  // the center of the board viewport so it isn't pushed out of view / clipped
+  // by the detail panel. Runs after the grid-width transition settles.
+  useEffect(() => {
+    if (!focusedTicketId) return;
+    const c = flowContainerRef.current;
+    if (!c) return;
+    const timer = window.setTimeout(() => {
+      const el = c.querySelector(`[data-ticket-id="${focusedTicketId}"]`);
+      if (el) el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    }, 210);
+    return () => window.clearTimeout(timer);
+  }, [focusedTicketId]);
 
   return (
     <main
