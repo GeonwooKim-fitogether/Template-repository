@@ -7,12 +7,16 @@
 //   - Agent view: cross-swimlane 가능
 //   - Bezier control offset: max(50, dx*0.45)
 //
-// 위치 측정:
+// 위치 측정 (모두 container 기준 상대 좌표 = scroll-invariant):
 //   - container = 보드 innermost div (cards 의 공통 ancestor)
-//   - 각 card 의 BCR 을 container 기준 좌표로 변환
-//   - ResizeObserver 로 container 크기 변화에 재측정
+//   - 각 card 의 BCR 을 container 기준 좌표로 변환 → scroll 해도 차이값 불변
+//   - 재측정 트리거: 초기 + 다음 frame + settle 타이머(230/480ms) +
+//     container resize(ResizeObserver) + window resize.
 //
-// 자식이라 scroll 영향 X. window resize / 데이터 update 만 따라가면 됨.
+// settle 재측정이 핵심: drawer 열림 0.18s grid 전환과 focus 카드 auto-scroll 이
+// 동기 measure() 이후에 끝나므로, 그때 카드 위치가 바뀐 걸 다시 잡아 점선이
+// 카드 모서리에서 빗나가지 않게 한다. (persistent scroll listener 는 smooth
+// scroll 중 setCurves 와 re-render loop 를 만들어 쓰지 않는다.)
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { TOKENS } from "../styles/atlassianTokens";
@@ -163,12 +167,24 @@ export function FlowOverlay({ containerRef, focusedTicketId, flowIds, enabled }:
     measureRef.current = measure;
     measure();
 
+    // Bounded, one-shot re-measures (NOT a persistent scroll listener — that
+    // loops with setCurves during smooth auto-scroll). Coordinates are
+    // container-relative / scroll-invariant, so we only need to re-measure
+    // after layout settles: next frame, after the 0.18s grid transition, and
+    // after the focused-card auto-scroll (~210ms) completes.
+    const raf = requestAnimationFrame(() => measureRef.current());
+    const t1 = window.setTimeout(() => measureRef.current(), 230);
+    const t2 = window.setTimeout(() => measureRef.current(), 480);
+
     const ro = new ResizeObserver(() => measureRef.current());
     ro.observe(container);
     const onResize = () => measureRef.current();
     window.addEventListener("resize", onResize);
 
     return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
       ro.disconnect();
       window.removeEventListener("resize", onResize);
     };

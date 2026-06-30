@@ -145,8 +145,11 @@ export function ProjectControlBoard({
     if (!c) return;
     const timer = window.setTimeout(() => {
       const el = c.querySelector(`[data-ticket-id="${focusedTicketId}"]`);
-      if (el) el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-    }, 210);
+      // Instant (not smooth): a smooth animation leaves the flow curves measured
+      // against a mid-animation scroll for a few frames → transient endpoint
+      // drift. Instant scroll + the settle re-measure keep curves glued.
+      if (el) el.scrollIntoView({ inline: "center", block: "nearest", behavior: "auto" });
+    }, 180);
     return () => window.clearTimeout(timer);
   }, [focusedTicketId]);
 
