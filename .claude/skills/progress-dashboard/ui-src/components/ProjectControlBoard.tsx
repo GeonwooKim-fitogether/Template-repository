@@ -1,0 +1,197 @@
+"use client";
+
+import { useEffect, useMemo, useRef } from "react";
+import { TOKENS } from "../styles/atlassianTokens";
+import { BoardLane } from "./BoardLane";
+import { FlowOverlay } from "./FlowOverlay";
+import type { Lane, Ticket, ViewMode } from "../types";
+import type { FlowMode, GroupMode } from "./TopBarV3";
+
+interface Props {
+  lanes: Lane[];
+  tickets: Ticket[];
+  viewMode: ViewMode;
+  focusedTicketId: string | null;
+  relatedIds: Set<string>;
+  onTicketClick: (t: Ticket) => void;
+  /** Ordered actor definitions for Agent-view swimlanes (from config). */
+  agents?: { label: string; outcome?: string }[];
+  /**
+   * v3 swimlane axis toggle.
+   *   "phase" — Lane.parent / Lane.label (Product / Meta / Control)
+   *   "agent" — synthesized from ticket.actor (Director / Claude Code / GPT / System)
+   */
+  groupMode: GroupMode;
+  /**
+   * v3 PR-5: Flow 점선 overlay 토글.
+   *   "on"  — 강조 카드 ↔ 인접 카드 bezier (Phase: same-lane only / Agent: cross-lane OK)
+   *   "off" — overlay 숨김
+   */
+  flowMode: FlowMode;
+}
+
+// Legacy fallback order + outcomes — used only when the data carries no
+// `agents` metadata (e.g. the static seed). Config-driven projects supply
+// their own actors via DashboardData.agents.
+const LEGACY_AGENT_ORDER: string[] = ["Director", "Claude Code", "GPT", "System"];
+const LEGACY_AGENT_OUTCOME: Record<string, string> = {
+  "Director":    "사람 의사 결정 · HCP 승인 · 본질 정의",
+  "Claude Code": "구현 · 코드 박제 · 검증 실행",
+  "GPT":         "오케스트레이션 · 기획 받아쓰기",
+  "System":      "자동 신호 · 컨트롤 플레인",
+};
+
+interface SwimlaneRow {
+  lane: Lane;
+  tickets: Ticket[];
+}
+
+type AgentMeta = { label: string; outcome?: string };
+
+// Data-driven Agent swimlanes. Order + subtitles come from `agents` (config).
+// Any actor present on a ticket but absent from `agents` still gets a lane
+// (appended in first-seen order) so nothing is silently dropped.
+function buildAgentLanes(tickets: Ticket[], agents?: AgentMeta[]): SwimlaneRow[] {
+  const buckets = new Map<string, Ticket[]>();
+  for (const t of tickets) {
+    const actor = t.actor ?? "System";
+    const arr = buckets.get(actor) ?? [];
+    arr.push(t);
+    buckets.set(actor, arr);
+  }
+
+  const hasMeta = Array.isArray(agents) && agents.length > 0;
+  const order = hasMeta ? agents!.map((a) => a.label) : LEGACY_AGENT_ORDER;
+  const outcomeOf = (actor: string): string | undefined => {
+    if (hasMeta) {
+      const m = agents!.find((a) => a.label === actor);
+      if (m) return m.outcome;
+    }
+    return LEGACY_AGENT_OUTCOME[actor];
+  };
+
+  // Configured/known order first, then any remaining actors present in data.
+  const seen = new Set<string>(order);
+  const finalOrder = [...order, ...[...buckets.keys()].filter((a) => !seen.has(a))];
+
+  const rows: SwimlaneRow[] = [];
+  for (const actor of finalOrder) {
+    const arr = buckets.get(actor);
+    if (!arr || arr.length === 0) continue;
+    rows.push({
+      lane: {
+        id: `agent-${actor}`,
+        label: actor,
+        parent: "Agent",
+        outcome: outcomeOf(actor),
+      },
+      tickets: arr,
+    });
+  }
+  return rows;
+}
+
+function buildPhaseLanes(lanes: Lane[], tickets: Ticket[]): SwimlaneRow[] {
+  const rows: SwimlaneRow[] = [];
+  for (const lane of lanes) {
+    const laneTickets = tickets.filter((t) => t.lane === lane.id);
+    if (laneTickets.length === 0) continue;
+    rows.push({ lane, tickets: laneTickets });
+  }
+  return rows;
+}
+
+export function ProjectControlBoard({
+  lanes,
+  tickets,
+  viewMode,
+  focusedTicketId,
+  relatedIds,
+  onTicketClick,
+  groupMode,
+  flowMode,
+  agents,
+}: Props) {
+  const rows = useMemo<SwimlaneRow[]>(
+    () =>
+      groupMode === "agent"
+        ? buildAgentLanes(tickets, agents)
+        : buildPhaseLanes(lanes, tickets),
+    [groupMode, lanes, tickets, agents],
+  );
+
+  // Flow 연결 id — focused 카드 ↔ 관련 카드. Phase / Agent 양쪽 모두 cross-lane
+  // 연결을 그린다 (관련 카드가 다른 swimlane 에 있어도 backlink 를 표시). relatedIds
+  // 는 focused id 자기 자신을 포함 (dim 처리용) — flow 에서는 제외.
+  const flowIds = useMemo<Set<string>>(() => {
+    if (flowMode !== "on" || !focusedTicketId || relatedIds.size === 0) {
+      return new Set<string>();
+    }
+    const filtered = new Set<string>();
+    relatedIds.forEach((rid) => {
+      if (rid !== focusedTicketId) filtered.add(rid); // self-curve 방지
+    });
+    return filtered;
+  }, [flowMode, focusedTicketId, relatedIds]);
+
+  const flowContainerRef = useRef<HTMLDivElement>(null);
+
+  // When a card is focused (drawer opens + board narrows), scroll that card to
+  // the center of the board viewport so it isn't pushed out of view / clipped
+  // by the detail panel. Runs after the grid-width transition settles.
+  useEffect(() => {
+    if (!focusedTicketId) return;
+    const c = flowContainerRef.current;
+    if (!c) return;
+    const timer = window.setTimeout(() => {
+      const el = c.querySelector(`[data-ticket-id="${focusedTicketId}"]`);
+      // Instant (not smooth): a smooth animation leaves the flow curves measured
+      // against a mid-animation scroll for a few frames → transient endpoint
+      // drift. Instant scroll + the settle re-measure keep curves glued.
+      if (el) el.scrollIntoView({ inline: "center", block: "nearest", behavior: "auto" });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [focusedTicketId]);
+
+  return (
+    <main
+      className="flex h-full flex-col overflow-y-auto"
+      style={{ background: TOKENS.bg }}
+      aria-label="Project Control Board"
+    >
+      <div className="overflow-x-auto p-3" style={{ minWidth: 0 }}>
+        <div ref={flowContainerRef} style={{ minWidth: 1200, position: "relative" }}>
+          {rows.map(({ lane, tickets: laneTickets }) => (
+            <BoardLane
+              key={lane.id}
+              lane={lane}
+              tickets={laneTickets}
+              viewMode={viewMode}
+              focusedTicketId={focusedTicketId}
+              relatedIds={relatedIds}
+              onTicketClick={onTicketClick}
+            />
+          ))}
+          {tickets.length === 0 && (
+            <div
+              className="rounded-md p-6 text-center text-sm"
+              style={{
+                color: TOKENS.textMuted,
+                background: TOKENS.bgWhite,
+                border: `1px dashed ${TOKENS.border}`,
+              }}
+            >
+              No cards in this scope.
+            </div>
+          )}
+          <FlowOverlay
+            containerRef={flowContainerRef}
+            focusedTicketId={focusedTicketId}
+            flowIds={flowIds}
+            enabled={flowMode === "on"}
+          />
+        </div>
+      </div>
+    </main>
+  );
+}
