@@ -14,9 +14,11 @@
 // that originated this UI). They are BUILD-TIME ONLY — the emitted HTML has no
 // dependency on them.
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -70,13 +72,52 @@ const result = await esbuild.build({
 
 const js = result.outputFiles[0].text;
 
+// --- compile Tailwind CSS for the classes used in ui-src -------------------
+// The dashboard components style layout with Tailwind utility classes
+// (flex/gap/padding/text-sizes/font-mono/...). Those must be compiled and
+// inlined, or the standalone bundle renders as unstyled stacked text.
+function generateTailwindCss() {
+  const cliPath = join(depsDir, "tailwindcss", "lib", "cli.js");
+  if (!existsSync(cliPath)) {
+    console.error(`[build-ui] tailwindcss CLI not found at ${cliPath} — UI will be unstyled.`);
+    process.exit(2);
+  }
+  const tmp = mkdtempSync(join(tmpdir(), "pd-tw-"));
+  const posix = (p) => p.replace(/\\/g, "/");
+  const inputCss =
+    "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n" +
+    ":root{color-scheme:light dark}\nhtml,body{height:100%}\n";
+  const cfg =
+    "module.exports={content:[" +
+    JSON.stringify(posix(join(__dirname, "ui-src")) + "/**/*.{ts,tsx}") +
+    "],theme:{extend:{}},plugins:[]};\n";
+  const inPath = join(tmp, "in.css");
+  const cfgPath = join(tmp, "tw.config.cjs");
+  const outPath = join(tmp, "out.css");
+  writeFileSync(inPath, inputCss, "utf8");
+  writeFileSync(cfgPath, cfg, "utf8");
+  try {
+    execFileSync(process.execPath, [cliPath, "-i", inPath, "-c", cfgPath, "-o", outPath, "--minify"], {
+      stdio: ["ignore", "ignore", "inherit"],
+      cwd: __dirname,
+    });
+    const css = readFileSync(outPath, "utf8");
+    console.log(`[build-ui] tailwind css: ${(Buffer.byteLength(css, "utf8") / 1024).toFixed(0)} KB`);
+    return css;
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+const tailwindCss = generateTailwindCss();
+
 const html = `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Progress Dashboard</title>
-<style>html,body{margin:0;padding:0;background:#1d2125;color:#c7d1db}#root{min-height:100vh}</style>
+<style>${tailwindCss}</style>
+<style>html,body{margin:0;padding:0;background:#F4F5F7}#root{min-height:100vh}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -92,7 +133,8 @@ console.log(`[build-ui] wrote ${outHtml} (${kb} KB)`);
 
 // Body-only fragment for the Claude Artifact path (the publisher wraps it in
 // its own <!doctype>/<head>/<body>, so we must NOT include those tags here).
-const body = `<style>html,body{margin:0;padding:0;background:#1d2125;color:#c7d1db}#root{min-height:100vh}</style>
+const body = `<style>${tailwindCss}</style>
+<style>html,body{margin:0;padding:0;background:#F4F5F7}#root{min-height:100vh}</style>
 <div id="root"></div>
 <script>window.__STATIC__=true;window.__DASHBOARD_DATA__=__DASHBOARD_DATA_JSON__;</script>
 <script>${js}</script>
