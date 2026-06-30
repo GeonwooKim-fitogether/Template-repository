@@ -100,7 +100,7 @@ function buildWpTickets(cfg, worklists, progress, closure, reReview, oneLiners) 
       column,
       type: "F-item",
       tone,
-      actor: "Claude Code",
+      actor: cfg.roles.implementer,
       links: [],
       description,
       progress: prog && prog.done > 0
@@ -139,7 +139,7 @@ function buildMetaTickets(cfg, oneLiners) {
       column: ms.column || "Development",
       type: "Meta",
       tone: "meta",
-      actor: "System",
+      actor: cfg.roles.system,
       description: ms.description,
     });
   }
@@ -154,7 +154,7 @@ function buildMetaTickets(cfg, oneLiners) {
       column: "Backlog",
       type: "Meta",
       tone: "meta",
-      actor: "System",
+      actor: cfg.roles.system,
       description: m.description || "candidate only — implementation NOT started.",
     });
   }
@@ -163,7 +163,7 @@ function buildMetaTickets(cfg, oneLiners) {
 
 // --- 3) Decision-log records -----------------------------------------------
 
-function buildDecisionRecords(decisions, controlLaneId) {
+function buildDecisionRecords(cfg, decisions, controlLaneId) {
   return decisions.map((d) => ({
     id: safeId(d.id, "rec"),
     code: d.id,
@@ -175,7 +175,7 @@ function buildDecisionRecords(decisions, controlLaneId) {
     column: "Done",
     type: "Record",
     tone: d.verdict === "rejected" ? "hcp" : "done",
-    actor: "Director",
+    actor: cfg.roles.director,
     description: [
       d.date,
       d.verdict !== "neutral" ? d.verdict : undefined,
@@ -203,7 +203,7 @@ function buildQueueTickets(cfg, queue, controlLaneId) {
       column: q.isHcp ? "Verification" : "Plan",
       type: ticketType,
       tone: "hcp",
-      actor: "Director",
+      actor: cfg.roles.director,
       description: [
         q.id,
         q.reviewTiming ? `review: ${q.reviewTiming}` : undefined,
@@ -230,7 +230,7 @@ function buildArchitecturalHcps(cfg, controlLaneId) {
     column: "Backlog",
     type: "HCP Gate",
     tone: "hcp",
-    actor: "Director",
+    actor: cfg.roles.director,
     description: `[${h.status}] anchor: ${h.anchor} · ${h.reason}`,
   }));
 }
@@ -424,7 +424,7 @@ export function buildDashboardData(input) {
 
   const wpTickets = buildWpTickets(cfg, input.worklists, input.progress, input.closure, reReview, oneLiners);
   const metaTickets = buildMetaTickets(cfg, oneLiners);
-  const decisionRecords = buildDecisionRecords(input.decisions, controlLaneId);
+  const decisionRecords = buildDecisionRecords(cfg, input.decisions, controlLaneId);
   const queueTickets = buildQueueTickets(cfg, input.decisionQueue, controlLaneId);
   const archHcps = buildArchitecturalHcps(cfg, controlLaneId);
 
@@ -447,11 +447,19 @@ export function buildDashboardData(input) {
   const tree = buildTree(cfg, ticketsWithLinks);
   const summary = buildSummary(cfg, ticketsWithLinks);
 
+  // Agent-view swimlane metadata. When the project defines its own actors,
+  // emit them (order + subtitles). Otherwise leave undefined so the UI uses
+  // its legacy four-actor fallback (Director / Claude Code / GPT / System).
+  const agents = cfg.actors.length > 0
+    ? cfg.actors.map((a) => ({ label: a.label, outcome: a.outcome }))
+    : undefined;
+
   return {
     lanes: cfg.lanes,
     tickets: ticketsWithLinks,
     tree,
     summary,
+    agents,
     source: {
       file: "meta/decisions.md + meta/decision-queue.md + worklists + git log",
       schemaVersion: "skill-v1-config-driven",

@@ -305,6 +305,7 @@ export function DirectorDashboardMVP({ data: initialData }: Props = {}) {
             onTicketClick={handleTicketClick}
             groupMode={groupMode}
             flowMode={flowMode}
+            agents={data?.agents}
           />
 
           {drawerOpen && (

@@ -88,6 +88,22 @@ proper board, create `dashboard.config.json` in the project root. See
 [reference/dashboard.config.example.json](reference/dashboard.config.example.json).
 The render output reports `config: auto-derived` vs `config: dashboard.config.json`.
 
+### Step 0 — First run: ask for the project's actors (one-time setup)
+The **GROUP: Agent** view groups cards by *who owns the next action*. The right actors
+are project-specific (a hardware team is not "Claude Code / GPT"). So **on first run in
+a project whose `dashboard.config.json` has no `actors`**, ASK the user before
+rendering:
+
+1. *"이 프로젝트의 행위자(역할)는 누구인가요? 예: Director(결정·승인), Hardware Eng(구현),
+   Vendor(외주), System(자동)."*
+2. *"work-package(실제 작업) 카드는 누가 맡나요?"* → becomes `roles.implementer`.
+
+Then write `actors` (ordered, each with a one-line `outcome`) and `roles` into the
+project's `dashboard.config.json`, and render. Subsequent runs reuse the saved actors —
+do **not** ask again. If the user declines, the board falls back to the default
+four-actor set (Director / Claude Code / GPT / System). See the `actors` + `roles`
+section of [reference/CONFIG.md](reference/CONFIG.md).
+
 ## Rebuilding the UI shell (rare — maintainers only)
 
 The bundled HTML only changes when `ui-src/` changes. Rebuilding needs a build-time

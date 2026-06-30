@@ -18,6 +18,30 @@ worklists, but labels will be raw codes — write this file for a real board.
 | `metaSprint` | MetaSprint \| null | no | A single highlighted meta card. |
 | `architecturalHcps` | ArchHcp[] | no | Forever-pending boundary reminders on Control. |
 | `vocabulary` | object | no | `CODE → 친근한 라벨` overrides (e.g. HCP plain names). |
+| `actors` | Actor[] | no | Agent-view swimlanes (order + subtitle). See below. |
+| `roles` | object | no | Which actor owns each card category. See below. |
+
+### actors + roles (Agent view)
+
+The board's **GROUP: Agent** toggle regroups the same cards by **who owns the next
+action** instead of by phase. These two fields make that project-specific.
+
+- **`actors`** — ordered list of `{ "label": string, "outcome"?: string }`. Each entry
+  is one Agent swimlane: `label` is the actor name, `outcome` is the lane subtitle
+  ("what this actor is responsible for"). Order here = swimlane order. An actor that
+  ends up with no cards is omitted automatically.
+- **`roles`** — maps card categories to an actor `label` (category-based assignment):
+
+  | role | covers | default |
+  |---|---|---|
+  | `implementer` | every work-package card | `"Claude Code"` |
+  | `director` | decision records, the decision/HCP queue, architectural HCP gates | `"Director"` |
+  | `system` | meta sprint + meta items | `"System"` |
+
+Example (hardware): `"roles": { "implementer": "Hardware Eng" }` puts every
+work-package under the **Hardware Eng** Agent lane; decisions/approvals stay under
+**Director**. If `actors`/`roles` are omitted, the board uses the original four-actor
+fallback (Director / Claude Code / GPT / System) — existing configs are unchanged.
 
 ### Lane
 | field | type | meaning |

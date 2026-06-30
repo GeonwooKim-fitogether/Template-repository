@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { TOKENS } from "../styles/atlassianTokens";
 import { BoardLane } from "./BoardLane";
 import { FlowOverlay } from "./FlowOverlay";
-import type { Actor, Lane, Ticket, ViewMode } from "../types";
+import type { Lane, Ticket, ViewMode } from "../types";
 import type { FlowMode, GroupMode } from "./TopBarV3";
 
 interface Props {
@@ -14,6 +14,8 @@ interface Props {
   focusedTicketId: string | null;
   relatedIds: Set<string>;
   onTicketClick: (t: Ticket) => void;
+  /** Ordered actor definitions for Agent-view swimlanes (from config). */
+  agents?: { label: string; outcome?: string }[];
   /**
    * v3 swimlane axis toggle.
    *   "phase" — Lane.parent / Lane.label (Product / Meta / Control)
@@ -28,11 +30,11 @@ interface Props {
   flowMode: FlowMode;
 }
 
-// Agent swimlane order: Director(사람) → Claude Code → GPT → System.
-const AGENT_ORDER: Actor[] = ["Director", "Claude Code", "GPT", "System"];
-
-// Director-facing outcome lines per agent — frames "what this swimlane is for".
-const AGENT_OUTCOME: Record<Actor, string> = {
+// Legacy fallback order + outcomes — used only when the data carries no
+// `agents` metadata (e.g. the static seed). Config-driven projects supply
+// their own actors via DashboardData.agents.
+const LEGACY_AGENT_ORDER: string[] = ["Director", "Claude Code", "GPT", "System"];
+const LEGACY_AGENT_OUTCOME: Record<string, string> = {
   "Director":    "사람 의사 결정 · HCP 승인 · 본질 정의",
   "Claude Code": "구현 · 코드 박제 · 검증 실행",
   "GPT":         "오케스트레이션 · 기획 받아쓰기",
@@ -44,16 +46,36 @@ interface SwimlaneRow {
   tickets: Ticket[];
 }
 
-function buildAgentLanes(tickets: Ticket[]): SwimlaneRow[] {
-  const buckets = new Map<Actor, Ticket[]>();
+type AgentMeta = { label: string; outcome?: string };
+
+// Data-driven Agent swimlanes. Order + subtitles come from `agents` (config).
+// Any actor present on a ticket but absent from `agents` still gets a lane
+// (appended in first-seen order) so nothing is silently dropped.
+function buildAgentLanes(tickets: Ticket[], agents?: AgentMeta[]): SwimlaneRow[] {
+  const buckets = new Map<string, Ticket[]>();
   for (const t of tickets) {
-    const actor: Actor = t.actor ?? "System";
+    const actor = t.actor ?? "System";
     const arr = buckets.get(actor) ?? [];
     arr.push(t);
     buckets.set(actor, arr);
   }
+
+  const hasMeta = Array.isArray(agents) && agents.length > 0;
+  const order = hasMeta ? agents!.map((a) => a.label) : LEGACY_AGENT_ORDER;
+  const outcomeOf = (actor: string): string | undefined => {
+    if (hasMeta) {
+      const m = agents!.find((a) => a.label === actor);
+      if (m) return m.outcome;
+    }
+    return LEGACY_AGENT_OUTCOME[actor];
+  };
+
+  // Configured/known order first, then any remaining actors present in data.
+  const seen = new Set<string>(order);
+  const finalOrder = [...order, ...[...buckets.keys()].filter((a) => !seen.has(a))];
+
   const rows: SwimlaneRow[] = [];
-  for (const actor of AGENT_ORDER) {
+  for (const actor of finalOrder) {
     const arr = buckets.get(actor);
     if (!arr || arr.length === 0) continue;
     rows.push({
@@ -61,7 +83,7 @@ function buildAgentLanes(tickets: Ticket[]): SwimlaneRow[] {
         id: `agent-${actor}`,
         label: actor,
         parent: "Agent",
-        outcome: AGENT_OUTCOME[actor],
+        outcome: outcomeOf(actor),
       },
       tickets: arr,
     });
@@ -88,13 +110,14 @@ export function ProjectControlBoard({
   onTicketClick,
   groupMode,
   flowMode,
+  agents,
 }: Props) {
   const rows = useMemo<SwimlaneRow[]>(
     () =>
       groupMode === "agent"
-        ? buildAgentLanes(tickets)
+        ? buildAgentLanes(tickets, agents)
         : buildPhaseLanes(lanes, tickets),
-    [groupMode, lanes, tickets],
+    [groupMode, lanes, tickets, agents],
   );
 
   // Flow 연결 id — Phase view 면 same-lane 만 통과시켜 cross-swimlane 그림 방지.

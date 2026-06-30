@@ -31,5 +31,16 @@
   ],
   "vocabulary": {
     "HCP-CERT": "양산 인증 게이트"
-  }
+  },
+  "roles": {
+    "implementer": "Hardware Eng",
+    "director": "Director",
+    "system": "System"
+  },
+  "actors": [
+    { "label": "Director",     "outcome": "설계 결정 · 게이트 승인 · 본질 정의" },
+    { "label": "Hardware Eng", "outcome": "회로 · 레이아웃 · 시제품 작업" },
+    { "label": "Vendor",       "outcome": "외주 제작 · 조립" },
+    { "label": "System",       "outcome": "자동 신호 · 기록" }
+  ]
 }

@@ -63,6 +63,7 @@ function deriveConfig(adapterData) {
 
 /** Fill in any missing optional sections so the builder never sees undefined. */
 function normalize(cfg) {
+  const r = cfg.roles && typeof cfg.roles === "object" ? cfg.roles : {};
   return {
     projectName: cfg.projectName || "Project",
     lanes: Array.isArray(cfg.lanes) ? cfg.lanes : [],
@@ -71,6 +72,15 @@ function normalize(cfg) {
     metaSprint: cfg.metaSprint ?? null,
     architecturalHcps: Array.isArray(cfg.architecturalHcps) ? cfg.architecturalHcps : [],
     vocabulary: cfg.vocabulary && typeof cfg.vocabulary === "object" ? cfg.vocabulary : {},
+    // Agent-view actors. `actors` defines the swimlane order + subtitles;
+    // `roles` maps card categories → actor. Defaults reproduce the original
+    // Director/Claude Code/System behavior so existing configs are unchanged.
+    actors: Array.isArray(cfg.actors) ? cfg.actors.filter((a) => a && a.label) : [],
+    roles: {
+      implementer: r.implementer || "Claude Code", // work-packages
+      director: r.director || "Director",          // decisions / queue / HCP gates
+      system: r.system || "System",                // meta sprint / meta items
+    },
     _derived: Boolean(cfg._derived),
   };
 }

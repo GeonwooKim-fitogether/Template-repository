@@ -45,11 +45,15 @@ export type ViewMode =
   | "Risk"
   | "Links";
 
+// Actor is free-form: projects define their own actors via config
+// (dashboard.config.json `actors`). The known names below stay as
+// autocomplete hints but any string is valid (e.g. "Hardware Eng", "Vendor").
 export type Actor =
   | "Director"
   | "GPT"
   | "Claude Code"
-  | "System";
+  | "System"
+  | (string & {});
 
 export type TicketType =
   | "F-item"
@@ -360,6 +364,14 @@ export interface DashboardData {
   tickets: Ticket[];
   tree: TreeNode;
   summary: SummaryPayload;
+  /**
+   * Ordered actor definitions for the Agent-view swimlanes. Each entry is one
+   * swimlane in Agent mode (label = the `ticket.actor` value it groups,
+   * outcome = the lane subtitle). Sourced from dashboard.config.json `actors`.
+   * When absent, the board falls back to the legacy four-actor order. Any
+   * actor present on a ticket but missing here still gets a lane (appended).
+   */
+  agents?: { label: string; outcome?: string }[];
   /** Repo documents matched to tree scopes (server-scanned). */
   docs?: DocLink[];
   /**
