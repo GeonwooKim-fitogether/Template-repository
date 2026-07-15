@@ -38,8 +38,19 @@ META = {
     'asis_img': focus_crop(PA, sheet, refs, mark=[…]),   # As Is 포커스 크롭(+구름). render_focus 참고
     'tobe_img': focus_crop(PB, sheet, refs, mark=[…]),   # To Be 포커스 크롭(+구름)
  },
+ 'drbfm': {                           # 3페이지: 관계도 + 걱정점 + 검증
+    'block': 'charger',               # hardware-map 블록 id(관계도 초점)
+    'graph': subgraph_svg(B,E,GC,GLAB,BC,BLAB,'charger'),  # 로드 시 계산해 넣는다
+    'worries': [{'fn':'변화점·기능','fm':'잠재 고장모드','effect':'영향/전파','sev':'높음'}, …],
+    'tests':   [{'item':'테스트 항목','method':'방법','pass':'합격 기준'}, …],
+ },
 }
 ```
+
+## 3페이지 관계도 (`subgraph.subgraph_svg`)
+`subgraph_svg(B, E, GC, GLAB, BC, BLAB, focus)` — hardware-map 그래프에서 `focus` 블록과 **직접 연결된
+블록만** 뽑아 포커스 SVG를 만든다(하드웨어맵 좌표 재사용, 관련 영역으로 자동 확대, 변경 블록은 빨강 강조).
+`B/E/GC/GLAB/BC/BLAB` 는 hardware-map 데이터(`from hw_data import …`)를 그대로 쓴다.
 
 ## 고정 CheckList 11항목 (엔진 순서)
 `재료비 변경 여부` · `투자비 필요 여부` · `SVC 호환성 여부` · `불용재고 발생 여부` · `FW호환성 여부` ·

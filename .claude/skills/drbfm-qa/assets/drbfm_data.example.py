@@ -190,3 +190,53 @@ for _it in ITEMS:
         _m = 80 if _it['no'] == 'CLBX6B-002' else 55
         _it['change']['asis_img'] = focus_crop(PA, _sh, _ra, margin=_m)   # mark=[…] 로 구름 표시 가능(기본 없음)
         _it['change']['tobe_img'] = focus_crop(PB, _sh, _rb)
+
+# ── 3페이지: DRBFM (관계도 + 걱정점 전개 + 검증 테스트) ──
+# 관계도는 hardware-map 그래프(B/E/색)에서 변경 블록 주변만 뽑아 그린다.
+# 실제 사용 시엔 `from hw_data import B,E,GC,GLAB,BC,BLAB` (hardware-map 데이터)를 쓴다.
+from clbx_graph import B, E, GC, GLAB, BC, BLAB
+from subgraph import subgraph_svg
+_DRBFM = {
+ 'CLBX6B-001': {'block': 'charger', 'worries': [
+    {'fn': 'Vset 하향(만충 4.3V)', 'fm': '저항 오차/오배치로 만충이 다시 4.35V 초과', 'effect': '배터리 과충전·수명↓·발화', 'sev': '높음'},
+    {'fn': '만충전압 하향', 'fm': '완충 용량 감소', 'effect': '1회 사용시간 단축(사용자)', 'sev': '중간'},
+    {'fn': '충전 종료 판정 변화', 'fm': 'STAT 충전상태 오보고', 'effect': 'MCU 충전표시·잔량 오류', 'sev': '중간'},
+    {'fn': '상한·온도 보호 조합', 'fm': '저온/고온 충전 시 상한 부적합', 'effect': '저온 리튬 석출 등 안전', 'sev': '중간'}],
+  'tests': [
+    {'item': '만충 개방전압', 'method': '셀 완충 후 개방전압 측정', 'pass': '4.25~4.35V (목표 4.3±0.05)'},
+    {'item': '완충 셀 온도', 'method': '완충 직후 셀 표면온도', 'pass': '규정 상한 이내'},
+    {'item': '충전상태 인식', 'method': 'STAT 신호로 MCU 완료 인식 확인', 'pass': '완료 정상 보고'},
+    {'item': 'JEITA 온도 프로파일', 'method': '저온/상온/고온 충전', 'pass': '구간별 전류·상한 준수'}]},
+ 'CLBX6B-002': {'block': 'gauge', 'worries': [
+    {'fn': '0.05Ω 션트 추가', 'fm': '션트값·게이지 설정 불일치', 'effect': '전류/SOC 오차(MCU 잔량)', 'sev': '중간'},
+    {'fn': '션트 배선', 'fm': '켈빈배선 미흡·배선저항', 'effect': '전류 오차·발열', 'sev': '중간'},
+    {'fn': '서미스터 추가', 'fm': 'β/배치 오류로 온도 오보고', 'effect': '충전 안전판단·SOC 보정', 'sev': '중간'},
+    {'fn': '신규 부품 FW 반영', 'fm': '게이지 설정(션트·β) 미갱신', 'effect': '잔량 크게 오차(사용자)', 'sev': '높음'}],
+  'tests': [
+    {'item': '전류 정확도', 'method': '기지 충/방전 전류 vs 게이지 보고', 'pass': '±3% 이내'},
+    {'item': 'SOC 정확도', 'method': '만충~방전 SOC 추종', 'pass': '규정 이내'},
+    {'item': '온도 보고', 'method': '온도 스텝 인가 시 THRM 값', 'pass': '기준온도 ±2℃'},
+    {'item': 'FW 설정 반영', 'method': '게이지 레지스터(션트·β) 확인', 'pass': '설계값 일치'}]},
+ 'CLBX6B-003': {'block': 'power', 'worries': [
+    {'fn': '인덕턴스 1→2.2µH·소형화', 'fm': '포화전류 마진 부족', 'effect': '부하과도 시 전압강하·포화(3.3V 전체)', 'sev': '높음'},
+    {'fn': '리플 변화', 'fm': '출력 리플/노이즈 증가', 'effect': 'IMU·GNSS 측정 노이즈', 'sev': '중간'},
+    {'fn': '소형 패키지', 'fm': '발열·효율 저하', 'effect': '전원 발열·수명', 'sev': '중간'},
+    {'fn': '과도 응답 변화', 'fm': '부하 스텝 시 순간 dip', 'effect': 'MCU 순간 리셋', 'sev': '중간'}],
+  'tests': [
+    {'item': '출력 리플', 'method': '3.3V 리플 오실로 측정', 'pass': '규정 mVpp 이내'},
+    {'item': '부하 과도', 'method': '부하 스텝 시 dip/회복', 'pass': '규정 이내·리셋 없음'},
+    {'item': '효율·발열', 'method': '최대부하 효율·인덕터 온도', 'pass': '규정 이내'},
+    {'item': '포화 마진', 'method': '최대 피크전류 vs 인덕터 Isat', 'pass': '마진 확보'}]},
+ 'CLBX6B-004': {'block': 'led', 'worries': [
+    {'fn': '전류제한 상향', 'fm': '전류 과소로 시인성 부족', 'effect': '표시 어두움(사용자)', 'sev': '낮음'},
+    {'fn': '색상별 저항 조정', 'fm': 'Vf 차이로 색 밸런스 틀어짐', 'effect': '상태색 구분 저하', 'sev': '낮음'}],
+  'tests': [
+    {'item': 'LED 전류', 'method': '색상별 전류 실측', 'pass': '목표 전류 ±10%'},
+    {'item': '시인성', 'method': '실환경 밝기·색 관능 확인', 'pass': '식별 가능'}]},
+}
+for _it in ITEMS:
+    _d = _DRBFM.get(_it['no'])
+    if _d:
+        _d = dict(_d)
+        _d['graph'] = subgraph_svg(B, E, GC, GLAB, BC, BLAB, _d['block'])
+        _it['drbfm'] = _d

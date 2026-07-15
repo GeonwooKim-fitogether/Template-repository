@@ -46,6 +46,29 @@ def compare_html(ch):
     return (f'<div class="cmpcol asis"><div class="cmph">As Is</div>{img(ch.get("asis_img"))}{col(ch.get("asis"))}</div>'
             f'<div class="cmpcol tobe"><div class="cmph">To Be</div>{img(ch.get("tobe_img"))}{col(ch.get("tobe"))}</div>')
 
+def drbfm_html(it):
+    d = it.get('drbfm')
+    if not d: return ''
+    graph = d.get('graph', '')
+    wr = ''.join(f'<tr><td>{e(w.get("fn"))}</td><td>{e(w.get("fm"))}</td>'
+                 f'<td>{e(w.get("effect"))}</td>'
+                 f'<td><span class="wsev" style="background:{SEV.get(w.get("sev"),"#8b98a4")}">{e(w.get("sev","—"))}</span></td></tr>'
+                 for w in d.get('worries', []))
+    ts = ''.join(f'<tr><td class="tno">T{i+1}</td><td>{e(t.get("item"))}</td>'
+                 f'<td>{e(t.get("method"))}</td><td>{e(t.get("pass"))}</td></tr>'
+                 for i, t in enumerate(d.get('tests', [])))
+    return f'''
+  <div class="secttl">3. DRBFM — 관계도 · 걱정점 전개 · 검증 테스트</div>
+  <div class="drbfm">
+    <div class="dgraph">{graph}<div class="dgcap">변경 블록(<b style="color:#d24a68">빨강</b>)과 직접 연결된 블록 — 걱정이 전파될 수 있는 범위</div></div>
+    <div class="dblk"><div class="colsub">걱정점 전개 <span class="psc">{len(d.get('worries',[]))}</span></div>
+      <table class="dtbl"><colgroup><col style="width:22%"><col style="width:33%"><col style="width:31%"><col style="width:14%"></colgroup>
+      <thead><tr><th>변화점·기능</th><th>걱정(잠재 고장모드)</th><th>영향(전파)</th><th>심각</th></tr></thead><tbody>{wr}</tbody></table></div>
+    <div class="dblk"><div class="colsub">검증 테스트 <span class="psc">{len(d.get('tests',[]))}</span></div>
+      <table class="dtbl"><colgroup><col style="width:34px"><col style="width:26%"><col style="width:40%"><col></colgroup>
+      <thead><tr><th></th><th>테스트 항목</th><th>방법</th><th>합격 기준</th></tr></thead><tbody>{ts}</tbody></table></div>
+  </div>'''
+
 def item_html(it, idx):
     iss, cau, sol = it.get('issue',{}), it.get('cause',{}), it.get('solution',{})
     cl_html, ycnt = checklist_html(it.get('checklist',{}))
@@ -85,6 +108,7 @@ def item_html(it, idx):
 
   <div class="secttl">변경점 (부품 비교)</div>
   <div class="cmp">{compare_html(it.get('change',{}))}</div>
+{drbfm_html(it)}
 </section>'''
 
 items = ''.join(item_html(it, 2) for it in ITEMS)
@@ -131,6 +155,18 @@ CSS = '''
 .cmpr{display:flex;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dotted #e6eaef}
 .cmpk{flex:none;width:44%;color:#53626e;font-weight:600;word-break:keep-all}
 .cmpv{font-family:ui-monospace,monospace;color:#16212c;word-break:break-all}
+.drbfm{border:1px solid #dce2e8;border-radius:8px;padding:12px 14px}
+.dgraph{background:#fbfcfd;border:1px solid #e6eaef;border-radius:8px;padding:10px;margin-bottom:12px}
+.dgsvg{width:100%;height:auto;max-height:340px;display:block}
+.dgcap{font-size:11px;color:#8b98a4;text-align:center;margin-top:6px}
+.dglegend{font-size:11px;color:#53626e;text-align:center;margin-top:4px}
+.dblk{margin-top:10px}
+.dtbl{width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
+.dtbl th{background:#f4f6f8;color:#53626e;font-size:10.5px;font-weight:800;text-align:left;padding:5px 8px;border-bottom:1px solid #dce2e8}
+.dtbl td{padding:5px 8px;border-bottom:1px solid #eef1f5;vertical-align:top;word-break:keep-all;overflow-wrap:break-word;line-height:1.45}
+.dtbl .tno{font-family:ui-monospace,monospace;color:#8b98a4;width:34px}
+.dtbl thead th:first-child{width:34px}
+.wsev{font-size:9.5px;font-weight:800;color:#fff;padding:1px 7px;border-radius:5px;white-space:nowrap}
 .foot{margin-top:16px;font-size:11px;color:#8b98a4}
 @media print{body{background:#fff} .item{box-shadow:none;break-inside:avoid}}
 '''
