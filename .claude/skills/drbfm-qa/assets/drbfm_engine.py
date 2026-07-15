@@ -50,23 +50,39 @@ def drbfm_html(it):
     d = it.get('drbfm')
     if not d: return ''
     graph = d.get('graph', '')
-    wr = ''.join(f'<tr><td>{e(w.get("fn"))}</td><td>{e(w.get("fm"))}</td>'
-                 f'<td>{e(w.get("effect"))}</td>'
-                 f'<td><span class="wsev" style="background:{SEV.get(w.get("sev"),"#8b98a4")}">{e(w.get("sev","—"))}</span></td></tr>'
-                 for w in d.get('worries', []))
-    ts = ''.join(f'<tr><td class="tno">T{i+1}</td><td>{e(t.get("item"))}</td>'
-                 f'<td>{e(t.get("method"))}</td><td>{e(t.get("pass"))}</td></tr>'
-                 for i, t in enumerate(d.get('tests', [])))
+    worries = d.get('worries', []); tests = d.get('tests', [])
+    # 걱정 → 검증 테스트 역참조(W#를 검증하는 T#)
+    w2t = {}
+    for ti, t in enumerate(tests):
+        for wn in t.get('covers', []):
+            w2t.setdefault(wn, []).append(ti + 1)
+    wr = ''
+    for wi, w in enumerate(worries):
+        wn = wi + 1
+        cover = ' '.join(f'<span class="lnk t">T{n}</span>' for n in w2t.get(wn, [])) or '<span class="none">—</span>'
+        wr += (f'<tr><td class="wno"><span class="lnk w">W{wn}</span></td><td>{e(w.get("fn"))}</td>'
+               f'<td>{e(w.get("fm"))}</td><td>{e(w.get("effect"))}</td>'
+               f'<td><span class="wsev" style="background:{SEV.get(w.get("sev"),"#8b98a4")}">{e(w.get("sev","—"))}</span></td>'
+               f'<td class="wcov">{cover}</td></tr>')
+    tc = ''
+    for ti, t in enumerate(tests):
+        covs = ' '.join(f'<span class="lnk w">W{n}</span>' for n in t.get('covers', [])) or '<span class="none">—</span>'
+        rows = ''
+        for lab, key in [('조건', 'cond'), ('프로토콜', 'method'), ('합격 기준', 'pass'), ('샘플·반복', 'sample')]:
+            if t.get(key):
+                rows += f'<div class="trow"><span class="tlab">{lab}</span><span class="tval">{e(t[key])}</span></div>'
+        tc += (f'<div class="tcard"><div class="tch"><span class="lnk t">T{ti+1}</span>'
+               f'<span class="tit">{e(t.get("item"))}</span>'
+               f'<span class="tcovs">검증 걱정 {covs}</span></div>{rows}</div>')
     return f'''
   <div class="secttl">3. DRBFM — 관계도 · 걱정점 전개 · 검증 테스트</div>
   <div class="drbfm">
     <div class="dgraph">{graph}<div class="dgcap">변경 블록(<b style="color:#d24a68">빨강</b>)과 직접 연결된 블록 — 걱정이 전파될 수 있는 범위</div></div>
-    <div class="dblk"><div class="colsub">걱정점 전개 <span class="psc">{len(d.get('worries',[]))}</span></div>
-      <table class="dtbl"><colgroup><col style="width:22%"><col style="width:33%"><col style="width:31%"><col style="width:14%"></colgroup>
-      <thead><tr><th>변화점·기능</th><th>걱정(잠재 고장모드)</th><th>영향(전파)</th><th>심각</th></tr></thead><tbody>{wr}</tbody></table></div>
-    <div class="dblk"><div class="colsub">검증 테스트 <span class="psc">{len(d.get('tests',[]))}</span></div>
-      <table class="dtbl"><colgroup><col style="width:34px"><col style="width:26%"><col style="width:40%"><col></colgroup>
-      <thead><tr><th></th><th>테스트 항목</th><th>방법</th><th>합격 기준</th></tr></thead><tbody>{ts}</tbody></table></div>
+    <div class="dblk"><div class="colsub">걱정점 전개 <span class="psc">{len(worries)}</span> <span class="subnote">· 맨 오른쪽 = 이 걱정을 닫는 검증</span></div>
+      <table class="dtbl"><colgroup><col style="width:40px"><col style="width:20%"><col style="width:29%"><col style="width:27%"><col style="width:52px"><col style="width:56px"></colgroup>
+      <thead><tr><th>#</th><th>변화점·기능</th><th>걱정(잠재 고장모드)</th><th>영향(전파)</th><th>심각</th><th>검증</th></tr></thead><tbody>{wr}</tbody></table></div>
+    <div class="dblk"><div class="colsub">검증 테스트 <span class="psc">{len(tests)}</span> <span class="subnote">· 각 테스트가 검증하는 걱정(W#)을 표시</span></div>
+      <div class="tcards">{tc}</div></div>
   </div>'''
 
 def item_html(it, idx):
@@ -167,6 +183,21 @@ CSS = '''
 .dtbl .tno{font-family:ui-monospace,monospace;color:#8b98a4;width:34px}
 .dtbl thead th:first-child{width:34px}
 .wsev{font-size:9.5px;font-weight:800;color:#fff;padding:1px 7px;border-radius:5px;white-space:nowrap}
+.subnote{font-weight:500;color:var(--faint);font-size:10px}
+.lnk{display:inline-block;font-family:ui-monospace,monospace;font-size:10px;font-weight:800;padding:1px 6px;border-radius:5px;line-height:1.5;white-space:nowrap}
+.lnk.w{background:#fdeef1;color:#d24a68;border:1px solid #f3c6d1}
+.lnk.t{background:#e9f0fa;color:#2f6fc4;border:1px solid #c7dbf1}
+.wcov{white-space:normal}
+.none{color:#cbd3da;font-size:11px}
+.tcards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:820px){.tcards{grid-template-columns:1fr}}
+.tcard{border:1px solid #dce2e8;border-radius:8px;padding:8px 10px;background:#fbfcfd}
+.tch{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px}
+.tch .tit{font-size:12px;font-weight:800;color:#16212c}
+.tcovs{font-size:10px;color:#8b98a4;margin-left:auto}
+.trow{display:flex;gap:7px;font-size:11.5px;line-height:1.5;padding:1px 0}
+.trow .tlab{flex:none;width:56px;color:#53626e;font-weight:700}
+.trow .tval{color:#16212c;word-break:keep-all;overflow-wrap:break-word}
 .foot{margin-top:16px;font-size:11px;color:#8b98a4}
 @media print{body{background:#fff} .item{box-shadow:none;break-inside:avoid}}
 '''
