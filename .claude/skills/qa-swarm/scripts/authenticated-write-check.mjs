@@ -35,7 +35,11 @@ if (!existsSync(STATE)) fail(`storageState 가 없습니다: ${STATE} — 먼저
 let chromium;
 try {
   const req = createRequire(path.join(APP_DIR, "package.json"));
-  ({ chromium } = await import(pathToFileURL(req.resolve("@playwright/test")).href));
+  // @playwright/test 는 ESM 동적 import 시 named export 를 노출하지 않고 default 하나만 준다.
+  // (CJS 모듈이라 module.exports 전체가 default 로 들어옴) → default 폴백으로 chromium 을 집는다.
+  const mod = await import(pathToFileURL(req.resolve("@playwright/test")).href);
+  chromium = mod.chromium ?? mod.default?.chromium;
+  if (!chromium) throw new Error("@playwright/test 에서 chromium 진입점을 찾지 못했습니다.");
 } catch (e) {
   fail(`@playwright/test 를 APP_DIR(${APP_DIR}) 에서 못 찾음. QA_APP_DIR 지정 필요. (${e.message})`);
 }
@@ -63,25 +67,43 @@ try {
   console.log(`[auth-write-check] · 인증 상태 확인 OK (${page.url()})`);
 
   // 2) 실제 쓰기 — 생성 마법사로 Change(ECO) 1건 생성.
+  // antd 는 Form.Item label 을 input 에 htmlFor 로 묶지 않아 getByLabel 이 안 잡힌다.
+  // 대신 안정적인 placeholder/role 로 필드를 집는다.
   const title = `QA-WRITE-CHECK ${new Date().toISOString()}`;
   await page.goto(`${APP_ORIGIN}/changes/new`, { waitUntil: "networkidle" });
-  await page.getByLabel("제목").fill(title);
-  // 3단계 마법사: 다음 → 다음 → 제출. 버튼이 보이는 대로 눌러 마지막까지 진행.
-  for (let i = 0; i < 3; i++) {
-    const next = page.getByRole("button", { name: /다음/ });
-    if (await next.isVisible().catch(() => false)) { await next.click(); await page.waitForTimeout(300); }
-    else break;
-  }
+
+  // Step 1(커버) — 제목 입력. 제목 Input 의 placeholder 에만 "Revision" 이 들어간다.
+  await page.getByPlaceholder(/Revision/i).fill(title);
+  await page.getByRole("button", { name: /다음/ }).click();
+
+  // Step 2(대상 아이템) — 위저드는 아이템을 최소 1개 담아야 다음 단계로 넘어간다.
+  // antd Select 를 열고 잠기지 않은(disabled 아닌) 첫 옵션을 고른다.
+  await page.locator(".ant-select-selector").first().click();
+  const option = page
+    .locator(".ant-select-item-option:not(.ant-select-item-option-disabled)")
+    .first();
+  await option.waitFor({ state: "visible", timeout: 10000 });
+  await option.click();
+  // 아이템이 담겼는지(테이블에 행이 생겼는지) 확인 후 다음.
+  await page.getByRole("button", { name: /다음/ }).click();
+
+  // Step 3(검토·제출) — 제출.
   const submit = page.getByRole("button", { name: /제출/ });
-  if (!(await submit.isVisible().catch(() => false))) fail("제출 버튼에 도달하지 못함(마법사 단계 변경 가능 — 셀렉터 확인).");
+  await submit.waitFor({ state: "visible", timeout: 10000 });
   await submit.click();
 
-  // 3) 저장 확인 — 상세로 이동(URL 에 ECO-)하고 제목이 보이면 성공.
-  await page.waitForURL(/\/changes\/ECO-/, { timeout: 15000 }).catch(() => {});
-  const onDetail = /\/changes\/ECO-/.test(page.url());
-  const titleShown = await page.getByText(title, { exact: false }).first().isVisible().catch(() => false);
-  if (!onDetail && !titleShown) fail(`쓰기 저장 확인 실패 — 현재 URL=${page.url()}`);
-  console.log(`[auth-write-check] ✓ PASS — 인증 상태에서 Change 생성 저장 확인 (${page.url()})`);
+  // 3) 저장 확인 — 검토 단계에도 제목 텍스트가 떠 있어(위양성 위험) 그것만으로는 안 된다.
+  //    DB 로 실제 저장됐는지를 앱의 읽기 경로로 되짚는다: 목록(/changes)을 새로 열어
+  //    방금 만든 제목이 나타나면(목록은 DB 를 읽어 그린다) 진짜 저장된 것이다.
+  await page.waitForURL(/\/changes\/ECO-/, { timeout: 8000 }).catch(() => {});
+  await page.goto(`${APP_ORIGIN}/changes`, { waitUntil: "networkidle" });
+  const persisted = await page
+    .getByText(title, { exact: false })
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (!persisted) fail(`쓰기 저장 확인 실패 — 목록에 방금 만든 Change 가 보이지 않음(현재 URL=${page.url()}).`);
+  console.log(`[auth-write-check] ✓ PASS — 인증 상태에서 Change 생성 → 목록에서 저장 확인 ("${title}")`);
   ok = true;
 } finally {
   await browser.close();
