@@ -3,7 +3,7 @@ name: qa-swarm
 description: Run a stakeholder-persona QA swarm against a running web app to discover the edge cases, dead-ends, and multi-user friction that hand-written test cases miss. Information-starved first-time users (Layer 1, breadth) and adversarial experts (Layer 2, depth) run as sub-agents; an orchestrator manages, verifies, and records a 2-D coverage ledger. Use when a system is functionally built and you need comprehensive, user-perspective quality verification.
 label_ko: QA 스웜
 summary_ko: 이해관계자 페르소나를 subagent로 띄워, 설명서 없이 처음 쓰는 사용자(L1 지형)와 적대적 전문가(L2 심층)로 앱을 직접 구동하며 막힘·엣지·다자 마찰을 발견하고, 오케스트레이터가 검증·취합해 2D 커버리지 원장에 기록한다.
-version: 0.1.1-unproven
+version: 0.2.0-unproven
 ---
 
 # QA Swarm
@@ -79,6 +79,8 @@ flowchart TD
 - **등록부 초안** — 반발산 게이트(파일이 무한정 늘어나지 않게 막는 관문)가 쓸, 존재해도 되는 파일 목록.
 
 사람이 직접 줘야 하는 것은 **자동으로 얻을 수 없는 것 하나 — 인증(역할별 로그인)** 뿐이다. 이것도 글이 아니라 테스트 러너의 로그인 셋업 스크립트로 둔다. 인증을 주지 못하면 로그인 없이 볼 수 있는 범위(주로 L1 도달성)까지만 돌고, 그 제약을 원장에 적는다.
+
+그 "로그인 셋업 스크립트"의 구체 구현이 이 스킬에 들어 있다(Supabase 인증 + Playwright 스택 기준). `scripts/mint-auth-state.mjs` 가 테스트 유저로 로그인해 Playwright 가 물고 시작하는 저장 상태(storageState)를 발급하고, `scripts/authenticated-write-check.mjs` 가 그 세션이 로그인만이 아니라 **쓰기까지 되는지**를 실앱에서 확인한다. 준비물(1회 프로비저닝)·권한 모델·안전 규칙은 `authenticated-session.md` 에 있다. 이로써 인증이 갖춰지면 L2와 권한·쓰기 검증까지 자동으로 돌 수 있다.
 
 **부트스트랩은 마지막에 "준비 상태 보드(신호등)"를 평가해 원장 맨 앞에 출력한다.** `qa-contract.md`의 전제조건 목록을 하나씩 자동 감지해 신호등을 매긴다 — 🟢(충족, 완전 가동) / 🟡(보완: 스킬이 초안을 생성하거나 등급을 강등해 계속 실행) / 🔴(차단: 실행 불가). **🔴가 될 수 있는 것은 "구동 앱" 하나뿐**이고, 없으면 실행을 거부하고 부족분만 보고한다. 나머지가 없으면 초안을 만들거나(분모·페르소나) 등급을 낮춰(인증·시드 등) 계속 돈다. 이 보드가 곧 "밖이 프로젝트마다 달라도 스킬이 스스로 등급을 매기고 그 사실을 드러내는" 통제 장치다. 각 항목의 판정 기준과 "없으면 대응"은 `qa-contract.md`에 있다.
 
