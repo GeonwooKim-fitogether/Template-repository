@@ -1,12 +1,14 @@
-name: FITogether 스킬·규칙·에이전트 동기화
+name: FITogether 스킬·규칙·에이전트·커맨드·워크플로 동기화
 
-# 이 repo의 .claude/skills/ · .claude/rules/ · .claude/agents/ 를 FITogether
-# 창고(Template-repository)와 주기적으로 맞춘다. 창고에서 이들이 추가/수정/삭제되면,
+# 이 repo의 .claude/skills/ · .claude/rules/ · .claude/agents/ · .claude/commands/ · .claude/workflows/ 를
+# FITogether 창고(Template-repository)와 주기적으로 맞춘다. 창고에서 이들이 추가/수정되면,
 # 이 봇이 알아서 가져와 커밋하므로 사람이 손댈 일이 없다.
 #
-# - .claude/skills/  : 공용 스킬 묶음 (qa-swarm 등)
-# - .claude/rules/   : 공용 규칙 (예: communication.md — 채팅·문서 어투 규칙)
-# - .claude/agents/  : 공용 서브에이전트 (예: doc-clarifier — 안 읽히는 md를 다시 써 주는 편집자)
+# - .claude/skills/    : 공용 스킬 묶음 (qa-swarm 등)
+# - .claude/rules/     : 공용 규칙 (예: communication.md — 채팅·문서 어투 규칙)
+# - .claude/agents/    : 공용 서브에이전트 (예: doc-clarifier — 안 읽히는 md를 다시 써 주는 편집자)
+# - .claude/commands/  : 공용 슬래시 커맨드 (예: /orchestrate·/sysreport·/pr-gate — 시스템층 지휘)
+# - .claude/workflows/ : 공용 워크플로 (예: kimlead-verified·system-sweep — 결정론적 검증·감사)
 #
 # 이 파일은 템플릿(창고)에 들어있어서 "Use this template"로 만든 모든 repo가
 # 함께 물려받는다. 각 repo는 자기 스케줄로 이 봇을 돌려 최신 상태를 유지한다.
@@ -26,13 +28,13 @@ jobs:
       - name: 체크아웃
         uses: actions/checkout@v4
 
-      - name: 창고에서 스킬·규칙·에이전트 가져오기
+      - name: 창고에서 스킬·규칙·에이전트·커맨드·워크플로 가져오기
         run: |
           rm -rf .skills-src
           git clone --depth 1 \
             https://github.com/geonwookim-fitogether/Template-repository .skills-src
-          mkdir -p .claude/skills .claude/rules .claude/agents
-          # 창고의 스킬·규칙·에이전트를 이 repo로 복사(덮어쓰기).
+          mkdir -p .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows
+          # 창고의 공용 자산을 이 repo로 복사(덮어쓰기).
           # 이 repo만의 커스텀 파일은 지우지 않는다(창고 파일만 덮어씀).
           cp -a .skills-src/.claude/skills/. .claude/skills/
           if [ -d .skills-src/.claude/rules ]; then
@@ -41,15 +43,21 @@ jobs:
           if [ -d .skills-src/.claude/agents ]; then
             cp -a .skills-src/.claude/agents/. .claude/agents/
           fi
+          if [ -d .skills-src/.claude/commands ]; then
+            cp -a .skills-src/.claude/commands/. .claude/commands/
+          fi
+          if [ -d .skills-src/.claude/workflows ]; then
+            cp -a .skills-src/.claude/workflows/. .claude/workflows/
+          fi
           rm -rf .skills-src
 
       - name: 변경 사항 커밋 (있을 때만)
         run: |
-          if [ -n "$(git status --porcelain .claude/skills .claude/rules .claude/agents)" ]; then
+          if [ -n "$(git status --porcelain .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add .claude/skills .claude/rules .claude/agents
-            git commit -m "chore: FITogether 스킬·규칙·에이전트 동기화 [skip ci]"
+            git add .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows
+            git commit -m "chore: FITogether 스킬·규칙·에이전트·커맨드·워크플로 동기화 [skip ci]"
             git push
           else
             echo "이미 최신 — 커밋 생략"
