@@ -5,7 +5,7 @@
 
   "works": [
     { "id": "PR105-A", "title": "디자인 토큰 --teal 조정", "area": "items", "team": "팀 A",
-      "status": "review", "block": "conflict", "touches": "token",
+      "status": "review", "block": "conflict", "touches": ["token", "contract"],
       "planStart": "2026-07-13", "planEnd": "2026-07-27", "progress": 90, "eta": "2026-08-12" },
 
     { "id": "PR105-B", "title": "디자인 토큰 --signal 추가", "area": "change", "team": "팀 B",
@@ -34,7 +34,8 @@
 
     { "id": "PR113", "title": "프로젝트 3그룹 스테이지", "area": "projects", "team": "팀 D",
       "status": "shipped",
-      "planStart": "2026-07-13", "planEnd": "2026-07-22", "progress": 100 },
+      "planStart": "2026-07-13", "planEnd": "2026-07-22", "progress": 100,
+      "completedAt": "2026-07-24" },
 
     { "id": "PR114", "title": "홈 워크리스트 집계", "area": "home", "team": "팀 E",
       "status": "review", "deps": ["PR100-D"], "drift": true,
@@ -52,8 +53,18 @@
   ],
 
   "violations": [
-    { "check": "spine", "ref": "PR115", "severity": "block" }
+    { "check": "spine", "ref": "PR115", "severity": "block" },
+    { "check": "lint", "severity": "warn" }
   ],
+
+  "checkRuns": {
+    "lint": "fail",
+    "arch": "pass",
+    "assetdecl": "pass",
+    "spine": "fail",
+    "docs": "pass",
+    "e2e": "skipped"
+  },
 
   "drift": { "gaps": 2, "pivots": 1 }
 }

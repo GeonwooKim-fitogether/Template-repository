@@ -33,6 +33,8 @@
     { "key": "bom",      "label": "자재명세", "en": "BOM" }
   ],
 
+  "teams": ["팀 A", "팀 B", "팀 C", "팀 D", "팀 E"],
+
   "assets": [
     { "key": "token", "label": "디자인 토큰",
       "plain": "화면의 색·글꼴·간격을 정해 둔 공용 규칙 값",

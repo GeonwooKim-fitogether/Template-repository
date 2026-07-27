@@ -11,12 +11,20 @@
 왜 이렇게 하나
 --------------
 사람이나 LLM이 매번 보고서를 새로 쓰면 판이 매번 달라지고, 숫자는 손으로 옮겨 적히다 틀린다.
-그래서 이 엔진은 두 가지를 구조적으로 막는다.
+그래서 이 엔진은 세 가지를 구조적으로 막는다.
 
 1. **산문 슬롯이 없다.** data에 자유 서술 필드가 없다. 화면에 나오는 모든 문장은
    (a) config에 선언된 고정 설명이거나 (b) 이 엔진이 데이터에서 계산한 문장이다.
 2. **스키마를 어기면 렌더하지 않는다.** 필수 누락·알 수 없는 값·없는 id 참조·여분 필드는
    전부 검증에서 걸려 종료 코드 2로 실패한다. 조용히 넘어가지 않는다.
+3. **보고되지 않은 것을 통과로 그리지 않는다.** 자동 검사는 실행 결과(data.checkRuns)가
+   보고됐을 때만 '통과'가 되고, 보고가 없으면 회색 '정보 없음'으로 남는다.
+
+무엇이 프로젝트마다 달라지나
+----------------------------
+어휘(팀·제품 영역·공용 자산·자동 검사의 이름과 설명), 무엇을 지켜볼지(카드), 화면 문구(text),
+경계값(thresholds), 시간 축(axis)이 config에서 온다. 반대로 **도출 문장(READ)·색·레이아웃·
+계산 규칙은 엔진이 고정한다** — 이것이 매 실행 같은 판이 나오는 이유다.
 
 실행
 ----
@@ -43,13 +51,16 @@ TEMPLATE_PATH = os.path.join(HERE, "board_template.html")
 MARKER = "/*__BOARD_DATA__*/null"
 
 # ══════════════════════════════════════════════════════════════════════════
-# 1. 엔진 상수 — 판정 규칙은 여기 한 곳에 고정한다. 데이터가 바꿀 수 없다.
+# 1. 엔진 상수 — 판정 규칙의 골격은 여기 한 곳에 고정한다.
+#    경계값(며칠부터 위험인가 등)만 config.thresholds로 열려 있고, data는 못 바꾼다.
 # ══════════════════════════════════════════════════════════════════════════
 
-STALL_RISK_DAYS = 14   # 이 일수 이상 멈춰 있으면 '위험', 1일 이상이면 '주의'
-DELAY_RISK_DAYS = 30   # 계획보다 이 일수 이상 늦으면 '위험', 1일 이상이면 '주의'
-RECENT_DAYS = 7        # "이번 주"의 정의 — 오늘로부터 뒤로 7일
-LANE_MAX_CARDS = 3     # 관심사 열에 펼쳐 보이는 카드 수. 나머지는 "그 외 n건"으로 접는다.
+DEFAULT_THRESHOLDS = {
+    "stallRiskDays": 14,   # 이 일수 이상 멈춰 있으면 '위험', 1일 이상이면 '주의'
+    "delayRiskDays": 30,   # 계획보다 이 일수 이상 늦으면 '위험', 1일 이상이면 '주의'
+    "recentDays": 7,       # "최근"의 정의 — 오늘로부터 뒤로 며칠
+    "laneMaxCards": 3,     # 관심사 열에 처음부터 펼쳐 두는 카드 수. 나머지는 버튼으로 펼친다.
+}
 
 SEV_ORDER = {"risk": 0, "warn": 1, "ok": 2, "info": 3}   # 급한 것이 위로
 SEV_EM = {"risk": "r", "warn": "a", "ok": "g", "info": "i"}  # 숫자 강조 색 클래스
@@ -63,29 +74,48 @@ TONES = {
 
 BLOCK_VALUES = ("conflict", "waiting")       # 작업이 막힌 사정
 VIOLATION_SEVERITIES = ("block", "warn")     # 위반의 무게
+RUN_RESULTS = ("pass", "fail", "skipped", "never")   # 검사 실행 결과 보고
+GREY_CHECK_STATES = ("skipped", "never", "unknown")  # 초록이 아니라 회색으로 그리는 상태
 METRIC_KINDS = (
-    "asset", "check", "area_stalled", "area_delay", "undated", "status_recent", "drift",
+    "asset", "check", "area_stalled", "area_delay", "undated", "status_recent",
+    "drift", "count",
 )
+COUNT_FIELDS = ("area", "status", "team", "block", "touches", "drift")
 KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+STAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
+PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
+EMPH_RE = re.compile(r"\[\[(.*?)\]\]", re.S)
+
+# 격자 한 줄에 놓을 수 있는 최대 열 수 — 이보다 많으면 줄을 고르게 나눈다(_grid_cols).
+MAX_COLS = {"lanes": 5, "kanban": 6, "checks": 7, "assets": 4}
 
 # ── 화면 문구 기본값 ──────────────────────────────────────────────────────
-# config의 text 절로 덮어쓸 수 있다. config가 비어도 보드가 그대로 동작하도록 전부 기본값을 갖는다.
+# config의 text 절로 하나씩 덮어쓸 수 있다. config가 비어도 보드가 그대로 동작하도록
+# 전부 기본값을 갖는다. {n} 같은 자리표시자를 쓸 수 있는 문구는 PLACEHOLDERS에 적혀 있고,
+# 거기 없는 이름을 쓰면 검증에서 거부한다.
 TEXT = {
+    # 머리·범례
     "metaPrefix": "갱신", "metaSuffix": "· 자동", "metaNote": "고정 계기판 · 같은 링크로 재게시",
     "themeLight": "테마: 밝게", "themeDark": "테마: GC 다크",
     "legendTitle": "색으로 읽는 법", "legendConflict": "충돌 · 위반",
     "legendWaiting": "대기 · 주의", "legendTrace": "연결 보기 (카드를 누르면 켜짐)",
+    # 밴드 1
     "band1Hint": "카드를 누르면 아래 두 밴드에서 연결된 항목만 밝아집니다",
     "verdictKicker": "종합 판정", "decideCount": "결정 필요",
     "decideHint": "사람이 정해 주기 전에는 진행할 수 없는 것", "decideBadge": "결정 필요",
-    "countUnit": "건", "laneOk": "이상 없음", "laneMore": "그 외 {n}건 (덜 급한 순으로 접힘)",
+    "verdictNoData": "자동 검사 {unknown}개는 실행 결과가 보고되지 않았다 — 그만큼 이 판정은 덜 안다",
+    "countUnit": "건", "laneOk": "이상 없음",
+    "laneMore": "그 외 {n}건 펼치기", "laneLess": "접기",
     "meanLabel": "뜻", "whyLabel": "걸리면",
+    # 밴드 2
     "viewSwitchLabel": "실행 현황 보기 전환",
     "viewNote": "같은 작업 목록을, 칸반은 상태 축으로 간트는 시간 축으로 봅니다.",
     "tabKanban": "칸반", "tabKanbanEn": "Kanban", "tabGantt": "간트", "tabGanttEn": "Gantt",
     "assetsTitle": "공용 자산 — 여러 팀이 같이 쓰는 것",
     "blockConflict": "충돌", "blockWaiting": "대기",
+    "areaBadgeConflict": "충돌 {n}", "areaBadgeWaiting": "대기 {n}",
+    "areaCount": "{n}건", "areaCountUndated": "{n}건 · 미정 {u}건",
     "ganttAxisLabel": "제품 영역 / 작업",
     "ganttEmptyArea": '계획 날짜가 있는 작업 없음 — 아래 "일정 미정"에 있습니다',
     "ganttDelayTip": "예상 종료가 계획을 넘김",
@@ -94,16 +124,56 @@ TEXT = {
     "ganttLegDep": "의존 — 앞 작업이 끝나야 시작",
     "ganttLegToday": "오늘", "ganttLegDue": "목표일",
     "ganttLegHint": "영역 행을 누르면 그 안의 작업이 펼쳐집니다",
-    "undatedGroup": "일정 미정", "undatedSuffix": "미정 {n}",
+    "axisOffBefore": "축 이전 {n}건", "axisOffAfter": "축 이후 {n}건",
+    "axisOffTip": "시간 축 범위 밖이라 막대를 그리지 않았습니다",
+    "undatedGroup": "일정 미정", "undatedCount": "{n}건",
     "undatedRow": "계획 시작·종료일 미정 — 시간 축에 올릴 수 없음",
+    # 밴드 3
     "checkPass": "통과", "checkWarn": "주의", "checkBlock": "위반",
-    "vioBlock": "막힘", "vioWarn": "주의", "okNone": "이상 없음",
+    "checkSkipped": "건너뜀", "checkNever": "실행된 적 없음", "checkUnknown": "정보 없음",
+    "vioBlock": "막힘", "vioWarn": "주의", "vioNoTarget": "특정 작업 지정 없음",
+    "okNone": "이상 없음", "noData": "실행 결과 보고 없음",
     "traceChip": "연결 보기", "traceOff": "해제",
-    "checksLabel": "자동 검사",
     "assetBadgeConflict": "{all}팀 중 {n}팀 충돌",
     "assetBadgeWaiting": "{n}팀 등록 대기",
     "assetBadgeOk": "이상 없음",
-    "recentPrefix": "이번 주",
+}
+
+# 문구 키마다 쓸 수 있는 자리표시자. 여기 없는 이름을 쓰면 검증에서 거부한다
+# (오타 {count} 같은 것이 화면에 그대로 찍히는 일을 막는다).
+PLACEHOLDERS = {
+    "laneMore": {"n"}, "areaBadgeConflict": {"n"}, "areaBadgeWaiting": {"n"},
+    "areaCount": {"n"}, "areaCountUndated": {"n", "u"}, "undatedCount": {"n"},
+    "axisOffBefore": {"n"}, "axisOffAfter": {"n"},
+    "assetBadgeConflict": {"n", "all"}, "assetBadgeWaiting": {"n", "all"},
+    "verdictNoData": {"unknown"},
+}
+
+# ── 도출 문장 — **엔진이 고정한다. config로 바꿀 수 없다.** ────────────────
+# 화면의 계산 문장은 전부 여기서 나온다. 문장을 프로젝트가 바꿀 수 있게 열어 두면
+# 같은 숫자가 프로젝트마다 다른 뜻으로 읽히고, "매 실행 같은 판"이 무너진다.
+# `[[ ]]`로 감싼 구간이 숫자 강조(색 굵은 글씨)로 그려지며, 강조 색은 심각도에서 나온다.
+# 단위 명사("팀", "건", "일")를 문장 안에 함께 두는 것이 중요하다 — 밖으로 빼면
+# countUnit 같은 값 하나가 비었을 때 문장이 "1이 계획보다 14일 늦다"처럼 깨진다.
+READ = {
+    "assetConflict": "{all}팀 중 [[{n}팀]]이 서로 다르게 고쳤다",
+    "assetWaiting": "[[{n}팀]]이 등록을 마치고 승인을 기다린다",
+    "assetOk": "충돌 없음 — [[{n}팀]]이 같은 값을 쓴다",
+    "checkHit": "위반 후보 [[{n}건]] · ",
+    "checkClean": "위반 없음 · ",
+    "checkNoRun": "실행 결과 보고 없음 · ",
+    "checkTail": "자동 검사 {all}개 중 [[{pass}개]] 통과",
+    "checkTailUnknown": "자동 검사 {all}개 중 [[{pass}개]] 통과 · 미보고 {unknown}개",
+    "stallNone": "멈춰 있는 작업 없음",
+    "stall": "{label}{josa} [[{days}일]]째 움직이지 않는다",
+    "delayNone": "계획보다 늦은 작업 없음",
+    "delay": "[[{n}건]]이 계획보다 [[{days}일]] 늦다",
+    "undatedNone": "모든 작업이 시간 축에 올라가 있다",
+    "undated": "[[{n}건]]이 아직 시간 축에 올라가지 못했다",
+    "recent": "최근 {days}일 {label} [[{n}건]]",
+    "drift": "{gapLabel} [[{gaps}건]] 누적 · {pivotLabel} [[{pivots}건]]",
+    "countNone": "해당하는 작업 없음",
+    "count": "해당 작업 [[{n}건]]",
 }
 
 DEFAULT_BANDS = {
@@ -134,6 +204,9 @@ class Validator:
 
     하나 고치고 다시 돌리면 다음 오류가 나오는 방식은 사람을 지치게 한다.
     그래서 치명적이지 않은 오류는 모두 모아서 함께 낸다.
+
+    또 하나의 규칙: **타입이 틀려도 예외로 죽지 않는다.** 어떤 필드에 무엇이 들어와도
+    검증 오류로 바뀌어야 한다. 파이썬 스택 트레이스는 쓰는 사람에게 아무 것도 알려 주지 않는다.
     """
 
     def __init__(self):
@@ -180,17 +253,32 @@ class Validator:
         return True
 
     def enum(self, path, value, allowed, what):
-        if value not in allowed:
+        # 해시할 수 없는 값(배열·객체)이 와도 여기서 조용히 오류로 바뀐다.
+        if not isinstance(value, (str, int, float, bool, type(None))) or value not in allowed:
             return self.err(path, f"알 수 없는 {what}입니다: {value!r}",
-                            "쓸 수 있는 값: " + ", ".join(sorted(allowed)))
+                            "쓸 수 있는 값: " + ", ".join(sorted(str(a) for a in allowed)))
         return True
 
     def ref(self, path, value, pool, what):
-        if value not in pool:
-            return self.err(path, f"{what} '{value}'를 찾을 수 없습니다",
+        if not isinstance(value, str) or value not in pool:
+            shown = value if isinstance(value, str) else repr(value)
+            return self.err(path, f"{what} '{shown}'를 찾을 수 없습니다",
                             ("선언된 값: " + ", ".join(sorted(pool))) if pool
                             else f"{what}가 하나도 선언돼 있지 않습니다")
         return True
+
+    def strlist(self, path, value):
+        """문자열 배열. 문자열 하나가 오면 [그것]으로 흡수한다(하위호환)."""
+        if isinstance(value, str):
+            return [value]
+        if not isinstance(value, list):
+            self.err(path, f"문자열 배열이어야 하는데 {_typename(value)}가 왔습니다")
+            return None
+        out = []
+        for i, item in enumerate(value):
+            if self.text(f"{path}[{i}]", item):
+                out.append(item)
+        return out
 
     def day(self, path, value):
         if not isinstance(value, str) or not DATE_RE.match(value):
@@ -198,6 +286,15 @@ class Validator:
         try:
             date.fromisoformat(value)
         except ValueError:
+            return self.err(path, f"달력에 없는 날짜입니다: {value!r}")
+        return True
+
+    def stamp(self, path, value):
+        """날짜 또는 날짜+시각. 자유 서술이 끼어들지 못하게 형식을 고정한다."""
+        if not isinstance(value, str) or not STAMP_RE.match(value):
+            return self.err(path, "YYYY-MM-DD 또는 YYYY-MM-DD HH:MM 형식이어야 합니다: "
+                                  f"{value!r}")
+        if not _is_day(value[:10]):
             return self.err(path, f"달력에 없는 날짜입니다: {value!r}")
         return True
 
@@ -232,13 +329,33 @@ def _typename(value):
             int: "정수", float: "소수", type(None): "null"}.get(type(value), type(value).__name__)
 
 
-def _keyed(v, path, items, required, optional, keyfield="key"):
-    """key가 있는 목록을 검증하고 {key: item} 사전을 만든다. 중복 key는 오류."""
+def _order(items, keyfield, kept):
+    """선언 순서를 그대로 보존한 id 목록. 배열이 아니거나 모양이 이상하면 빈 목록."""
+    if not isinstance(items, list):
+        return []
+    out = []
+    for item in items:
+        k = item.get(keyfield) if isinstance(item, dict) else None
+        if isinstance(k, str) and k in kept and k not in out:
+            out.append(k)
+    return out
+
+
+def _keyed(v, path, items, required, optional, keyfield="key", strings=()):
+    """key가 있는 목록을 검증하고 {key: item} 사전을 만든다. 중복 key는 오류.
+
+    `strings`에 적은 항목은 문자열인지까지 본다. 여기서 걸러 두지 않으면 라벨 자리에
+    숫자나 배열이 들어와도 검증을 통과해, 계산 단계에서 스택 트레이스로 죽는다.
+    """
     out = {}
     for i, item in enumerate(items):
         p = f"{path}[{i}]"
         if not v.obj(p, item, required, optional):
-            continue
+            if not isinstance(item, dict):
+                continue
+        for f in strings:
+            if f in item:
+                v.text(f"{p}.{f}", item[f], allow_empty=(f not in required))
         if keyfield not in item:
             continue
         if not v.key(f"{p}.{keyfield}", item[keyfield]):
@@ -251,12 +368,26 @@ def _keyed(v, path, items, required, optional, keyfield="key"):
     return out
 
 
+def _check_text_value(v, path, key, value):
+    """문구 하나를 검증한다 — 자리표시자가 규격에 맞는가, 강조 표시를 넣지 않았는가."""
+    allowed = PLACEHOLDERS.get(key, set())
+    bad = sorted(set(PLACEHOLDER_RE.findall(value)) - allowed)
+    if bad:
+        v.err(path, "이 문구에 쓸 수 없는 자리표시자입니다: " + ", ".join("{%s}" % b for b in bad),
+              ("쓸 수 있는 자리표시자: " + ", ".join("{%s}" % a for a in sorted(allowed)))
+              if allowed else "이 문구에는 자리표시자를 쓸 수 없습니다")
+    if "[[" in value or "]]" in value:
+        v.err(path, "[[ ]] 강조 표시는 문구(text)에 쓸 수 없습니다",
+              "숫자 강조는 엔진이 도출 문장에서만 씁니다 — 도출 문장은 config로 바꿀 수 없습니다")
+
+
 def validate_config(v, cfg):
     """config를 검증하고, 기본값을 채운 정규화 결과를 돌려준다."""
     v.obj("config", cfg,
           required=("board", "lanes", "statuses", "areas", "cards"),
-          optional=("bands", "verdicts", "assets", "checks", "drift", "honesty", "axis", "text"))
-    if v.errors and not isinstance(cfg, dict):
+          optional=("bands", "verdicts", "assets", "checks", "teams", "drift",
+                    "honesty", "axis", "thresholds", "text"))
+    if not isinstance(cfg, dict):
         return None
 
     board = cfg.get("board", {})
@@ -296,36 +427,67 @@ def validate_config(v, cfg):
     if axis["tickDays"] > axis["days"]:
         v.err("config.axis.tickDays", "축 길이(days)보다 눈금 간격이 큽니다")
 
+    # 경계값은 프로젝트마다 리듬이 달라 열어 둔다(2주 스프린트 vs 반년 리드타임).
+    # 기본값은 그대로이므로, 적지 않으면 지금까지와 같은 판정이 나온다.
+    thresholds = dict(DEFAULT_THRESHOLDS)
+    if "thresholds" in cfg and v.obj("config.thresholds", cfg["thresholds"],
+                                     optional=tuple(DEFAULT_THRESHOLDS)):
+        for k, val in cfg["thresholds"].items():
+            if v.whole(f"config.thresholds.{k}", val, lo=1, hi=3650):
+                thresholds[k] = val
+
     text = dict(TEXT)
     if "text" in cfg and isinstance(cfg["text"], dict):
         for k, val in cfg["text"].items():
+            path = f"config.text.{k}"
             if k not in TEXT:
-                v.err(f"config.text.{k}", "알 수 없는 문구 키입니다",
+                v.err(path, "알 수 없는 문구 키입니다",
                       "쓸 수 있는 키 목록은 reference/board-schema.md의 '문구(text)' 절에 있습니다")
-            elif v.text(f"config.text.{k}", val, allow_empty=True):
+            elif v.text(path, val, allow_empty=True):
+                _check_text_value(v, path, k, val)
                 text[k] = val
     elif "text" in cfg:
-        v.err("config.text", "객체여야 합니다")
+        v.err("config.text", f"객체여야 하는데 {_typename(cfg['text'])}가 왔습니다")
+
+    # 팀 명부(선택) — 있으면 공용 자산의 "n팀 중 m팀"에서 n이 '전체 팀 수'가 된다.
+    # 없으면 n은 '그 자산을 건드린 팀 수'다. 어느 쪽이든 그 자산과 무관한 작업이
+    # 늘었다고 분모가 흔들리지 않는다.
+    teams = None
+    if "teams" in cfg:
+        got = v.strlist("config.teams", cfg["teams"])
+        if got is not None:
+            teams = []
+            for t in got:
+                if t not in teams:
+                    teams.append(t)
 
     lanes = checks = assets = areas = statuses = {}
     if v.lst("config.lanes", cfg.get("lanes"), 1):
-        lanes = _keyed(v, "config.lanes", cfg["lanes"], ("key", "label"), ("en",))
+        lanes = _keyed(v, "config.lanes", cfg["lanes"], ("key", "label"), ("en",),
+                       strings=("label", "en"))
     if v.lst("config.areas", cfg.get("areas"), 1):
-        areas = _keyed(v, "config.areas", cfg["areas"], ("key", "label"), ("en",))
+        areas = _keyed(v, "config.areas", cfg["areas"], ("key", "label"), ("en",),
+                       strings=("label", "en"))
     if v.lst("config.statuses", cfg.get("statuses"), 1):
         statuses = _keyed(v, "config.statuses", cfg["statuses"],
-                          ("key", "label", "tone"), ("mean",))
+                          ("key", "label", "tone"), ("mean",), strings=("label", "mean"))
         for k, st in statuses.items():
             v.enum(f"config.statuses[{k}].tone", st.get("tone"), TONES, "색 이름")
     if "assets" in cfg and v.lst("config.assets", cfg["assets"]):
-        assets = _keyed(v, "config.assets", cfg["assets"], ("key", "label", "plain"), ("why",))
+        assets = _keyed(v, "config.assets", cfg["assets"], ("key", "label", "plain"), ("why",),
+                        strings=("label", "plain", "why"))
     if "checks" in cfg and v.lst("config.checks", cfg["checks"]):
-        checks = _keyed(v, "config.checks", cfg["checks"], ("key", "name", "plain"), ("why",))
+        checks = _keyed(v, "config.checks", cfg["checks"], ("key", "name", "plain"), ("why",),
+                        strings=("name", "plain", "why"))
 
     drift = cfg.get("drift")
     if drift is not None:
         v.obj("config.drift", drift, required=("gapLabel", "pivotLabel"),
               optional=("note", "linkLabel", "href"))
+        if isinstance(drift, dict):
+            for k, val in drift.items():
+                v.text(f"config.drift.{k}", val,
+                       allow_empty=(k not in ("gapLabel", "pivotLabel")))
 
     if "honesty" in cfg:
         v.text("config.honesty", cfg["honesty"], allow_empty=True)
@@ -334,23 +496,26 @@ def validate_config(v, cfg):
     if v.lst("config.cards", cfg.get("cards"), 1):
         cards = _keyed(v, "config.cards", cfg["cards"],
                        ("key", "lane", "title", "plain", "metric"),
-                       ("why", "decide", "traceChecks"))
+                       ("why", "decide", "traceChecks"),
+                       strings=("title", "plain", "why"))
         for k, card in cards.items():
             p = f"config.cards[{k}]"
             v.ref(f"{p}.lane", card.get("lane"), set(lanes), "관심사 열(lane)")
             if "decide" in card:
                 v.flag(f"{p}.decide", card["decide"])
-            for i, ck in enumerate(card.get("traceChecks", []) or []):
-                v.ref(f"{p}.traceChecks[{i}]", ck, set(checks), "자동 검사")
+            if "traceChecks" in card:
+                got = v.strlist(f"{p}.traceChecks", card["traceChecks"])
+                for i, ck in enumerate(got or []):
+                    v.ref(f"{p}.traceChecks[{i}]", ck, set(checks), "자동 검사")
             _validate_metric(v, f"{p}.metric", card.get("metric"),
                              assets, checks, areas, statuses, drift)
 
     return {"board": board, "bands": bands, "verdicts": verdicts,
-            "axis": axis, "text": text, "lanes": lanes,
+            "axis": axis, "thresholds": thresholds, "text": text, "lanes": lanes,
             "areas": areas, "statuses": statuses, "assets": assets, "checks": checks,
-            "cards": cards, "drift": drift, "honesty": cfg.get("honesty", ""),
-            "laneOrder": [l["key"] for l in cfg.get("lanes", []) if isinstance(l, dict) and "key" in l],
-            "cardOrder": [c["key"] for c in cfg.get("cards", []) if isinstance(c, dict) and "key" in c]}
+            "teams": teams, "cards": cards, "drift": drift, "honesty": cfg.get("honesty", ""),
+            "laneOrder": _order(cfg.get("lanes"), "key", lanes),
+            "cardOrder": _order(cfg.get("cards"), "key", cards)}
 
 
 _METRIC_BINDING = {
@@ -361,6 +526,7 @@ _METRIC_BINDING = {
     "status_recent": ("status", "statuses", "상태"),
     "undated": (None, None, None),
     "drift": (None, None, None),
+    "count": (None, None, None),
 }
 
 
@@ -375,7 +541,8 @@ def _validate_metric(v, path, metric, assets, checks, areas, statuses, drift):
         return False
     field, pool_name, what = _METRIC_BINDING[kind]
     required = ("kind",) + ((field,) if field else ())
-    if not v.obj(path, metric, required=required):
+    optional = ("match", "warnAt", "riskAt") if kind == "count" else ()
+    if not v.obj(path, metric, required=required, optional=optional):
         return False
     if field:
         pool = {"assets": assets, "checks": checks, "areas": areas, "statuses": statuses}[pool_name]
@@ -383,24 +550,40 @@ def _validate_metric(v, path, metric, assets, checks, areas, statuses, drift):
     if kind == "drift" and drift is None:
         v.err(path, "kind가 'drift'인 카드가 있는데 config.drift가 선언돼 있지 않습니다",
               "config에 drift: {gapLabel, pivotLabel} 를 넣으세요")
+    if kind == "count":
+        # 임의의 숫자를 손으로 적게 두지 않는다 — 조건을 선언하면 엔진이 데이터에서 센다.
+        match = metric.get("match")
+        if not isinstance(match, dict) or not match:
+            v.err(f"{path}.match", "kind가 'count'인 카드에는 match가 최소 1개 필요합니다",
+                  "셀 수 있는 항목: " + ", ".join(COUNT_FIELDS))
+        else:
+            for f, val in match.items():
+                if f not in COUNT_FIELDS:
+                    v.err(f"{path}.match.{f}", f"작업(work)에 없는 항목으로는 셀 수 없습니다: {f}",
+                          "셀 수 있는 항목: " + ", ".join(COUNT_FIELDS))
+                elif not isinstance(val, (str, bool)):
+                    v.err(f"{path}.match.{f}", "셀 조건의 값은 문자열이나 true/false여야 합니다")
+        for f in ("warnAt", "riskAt"):
+            if f in metric:
+                v.whole(f"{path}.{f}", metric[f], lo=0)
     return True
 
 
 WORK_REQUIRED = ("id", "title", "area", "team", "status")
 WORK_OPTIONAL = ("block", "touches", "planStart", "planEnd", "progress", "eta",
-                 "deps", "stalledDays", "drift")
+                 "completedAt", "deps", "stalledDays", "drift")
 
 
 def validate_data(v, data, C):
     """data를 검증한다. config(C)에 선언되지 않은 것을 참조하면 오류."""
     if not v.obj("data", data, required=("today", "works"),
-                 optional=("updated", "target", "violations", "drift")):
+                 optional=("updated", "target", "violations", "checkRuns", "drift")):
         return None
 
     if "today" in data:
         v.day("data.today", data["today"])
     if "updated" in data:
-        v.text("data.updated", data["updated"])
+        v.stamp("data.updated", data["updated"])
 
     target = data.get("target")
     if target is not None and v.obj("data.target", target, required=("date",)):
@@ -408,29 +591,39 @@ def validate_data(v, data, C):
 
     works = {}
     if v.lst("data.works", data.get("works"), 1):
-        works = _keyed(v, "data.works", data["works"], WORK_REQUIRED, WORK_OPTIONAL, keyfield="id")
+        works = _keyed(v, "data.works", data["works"], WORK_REQUIRED, WORK_OPTIONAL,
+                       keyfield="id", strings=("title", "team"))
         for wid, w in works.items():
             p = f"data.works[{wid}]"
-            v.text(f"{p}.title", w.get("title"))
-            v.text(f"{p}.team", w.get("team"))
+            if isinstance(w.get("team"), str) and C["teams"] is not None \
+                    and w["team"] not in C["teams"]:
+                v.err(f"{p}.team", f"config.teams 명부에 없는 팀입니다: {w['team']!r}",
+                      "명부를 선언했으면 모든 작업의 팀이 그 안에 있어야 "
+                      "「n팀 중 m팀」 표시가 정직해집니다")
             v.ref(f"{p}.area", w.get("area"), set(C["areas"]), "제품 영역")
             v.ref(f"{p}.status", w.get("status"), set(C["statuses"]), "상태")
             if "block" in w:
                 v.enum(f"{p}.block", w["block"], BLOCK_VALUES, "막힘 사유(block)")
             if "touches" in w:
-                v.ref(f"{p}.touches", w["touches"], set(C["assets"]), "공용 자산")
+                # 문자열 하나도 받고 배열도 받는다 — 한 작업이 여러 자산을 건드릴 수 있다.
+                got = v.strlist(f"{p}.touches", w["touches"])
+                for i, t in enumerate(got or []):
+                    suffix = "" if isinstance(w["touches"], str) else f"[{i}]"
+                    v.ref(f"{p}.touches{suffix}", t, set(C["assets"]), "공용 자산")
             if "progress" in w:
                 v.whole(f"{p}.progress", w["progress"], 0, 100)
             if "stalledDays" in w:
                 v.whole(f"{p}.stalledDays", w["stalledDays"], 0, 3650)
             if "drift" in w:
                 v.flag(f"{p}.drift", w["drift"])
+            if "deps" in w:
+                v.strlist(f"{p}.deps", w["deps"])
 
             has_start, has_end = "planStart" in w, "planEnd" in w
             if has_start != has_end:
                 v.err(p, "planStart와 planEnd는 함께 있거나 함께 없어야 합니다",
                       "한쪽만 있으면 시간 축에 그릴 수 없습니다")
-            for k in ("planStart", "planEnd", "eta"):
+            for k in ("planStart", "planEnd", "eta", "completedAt"):
                 if k in w:
                     v.day(f"{p}.{k}", w[k])
             # 날짜 비교는 두 값이 모두 '달력에 실제로 있는 날'일 때만 한다.
@@ -443,7 +636,9 @@ def validate_data(v, data, C):
                 v.err(f"{p}.eta", "eta(예상 종료)는 planEnd가 있는 작업에만 쓸 수 있습니다")
 
         for wid, w in works.items():
-            for i, dep in enumerate(w.get("deps", []) or []):
+            deps = w.get("deps")
+            deps = [deps] if isinstance(deps, str) else (deps if isinstance(deps, list) else [])
+            for i, dep in enumerate(deps):
                 path = f"data.works[{wid}].deps[{i}]"
                 if v.ref(path, dep, set(works), "작업") and dep == wid:
                     v.err(path, "자기 자신을 선행 작업으로 둘 수 없습니다")
@@ -452,12 +647,29 @@ def validate_data(v, data, C):
     if "violations" in data and v.lst("data.violations", data["violations"]):
         for i, vio in enumerate(data["violations"]):
             p = f"data.violations[{i}]"
-            if not v.obj(p, vio, required=("check", "ref", "severity")):
+            # ref는 선택이다 — 야간 보안 검사·의존성 취약점처럼 특정 작업이 아니라
+            # 저장소·의존성 단위로 걸리는 위반이 실제로는 더 흔하다.
+            if not v.obj(p, vio, required=("check", "severity"), optional=("ref",)):
                 continue
             v.ref(f"{p}.check", vio["check"], set(C["checks"]), "자동 검사")
-            v.ref(f"{p}.ref", vio["ref"], set(works), "작업")
+            if "ref" in vio:
+                v.ref(f"{p}.ref", vio["ref"], set(works), "작업")
             v.enum(f"{p}.severity", vio["severity"], VIOLATION_SEVERITIES, "위반 무게(severity)")
             violations.append(vio)
+
+    # 검사 실행 결과 — 보고된 것만 통과가 된다.
+    runs = data.get("checkRuns")
+    if runs is not None:
+        if v.obj("data.checkRuns", runs, optional=tuple(C["checks"])):
+            for k, val in runs.items():
+                if k not in C["checks"]:
+                    continue
+                if v.enum(f"data.checkRuns.{k}", val, RUN_RESULTS, "실행 결과") and val == "pass":
+                    n = sum(1 for x in violations if x.get("check") == k)
+                    if n:
+                        v.err(f"data.checkRuns.{k}",
+                              f"실행 결과를 'pass'로 보고했는데 이 검사의 위반이 {n}건 있습니다",
+                              "통과인지 실패인지 하나로 맞추세요")
 
     drift = data.get("drift")
     if drift is not None:
@@ -470,15 +682,15 @@ def validate_data(v, data, C):
 
     for key, card in C["cards"].items():
         metric = card.get("metric") or {}
-        if metric.get("kind") == "drift" and drift is None:
+        if isinstance(metric, dict) and metric.get("kind") == "drift" and drift is None:
             v.err(f"config.cards[{key}].metric",
                   "kind가 'drift'인 카드가 있는데 data.drift가 없습니다",
                   "data에 drift: {gaps, pivots} 를 넣으세요")
 
     return {"today": data.get("today"), "updated": data.get("updated"),
-            "target": target, "works": works, "violations": violations, "drift": drift,
-            "workOrder": [w["id"] for w in data.get("works", [])
-                          if isinstance(w, dict) and "id" in w]}
+            "target": target, "works": works, "violations": violations,
+            "checkRuns": runs, "drift": drift,
+            "workOrder": _order(data.get("works"), "id", works)}
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -495,13 +707,66 @@ def _josa(word, with_batchim, without):
     return without
 
 
+def _sub(template, vals):
+    """{이름} 자리만 골라 바꾼다. str.format을 쓰지 않는 이유는, 문구 안에 사용자에게
+    보여 줄 JSON 조각({gapLabel, pivotLabel} 같은 것)이 그대로 들어 있기 때문이다."""
+    return PLACEHOLDER_RE.sub(lambda m: str(vals.get(m.group(1), m.group(0))), template)
+
+
 def _seg(t, em=None):
     return {"t": t, "em": em} if em is not None else {"t": t}
+
+
+def _read(key, em, **vals):
+    """엔진이 고정한 도출 문장 하나를 읽는 문장 조각들로 바꾼다.
+
+    `[[ ]]`로 감싼 구간이 강조(색 굵은 글씨)가 된다. 강조 색(em)은 심각도에서 나온다.
+    """
+    out = []
+    for i, part in enumerate(EMPH_RE.split(READ[key])):
+        if not part:
+            continue
+        out.append(_seg(_sub(part, vals), em) if i % 2 else _seg(_sub(part, vals)))
+    return out
+
+
+def _touch_list(w):
+    """touches를 언제나 목록으로 본다 — 문자열 하나도 배열도 같은 모양으로."""
+    t = w.get("touches")
+    if t is None:
+        return []
+    return [t] if isinstance(t, str) else list(t)
+
+
+def _grid_cols(n, maxcols):
+    """격자 열 수 — 선언한 개수만큼 놓되, 너무 좁아지면 줄을 고르게 나눈다.
+
+    열 수를 화면에 박아 두면(예: 항상 6열) 7개를 넣었을 때 6+1이 되어 하나가 외따로 남는다.
+    그렇다고 무한정 한 줄에 밀어 넣으면 열이 읽을 수 없이 좁아진다. 그래서 최대 열 수를
+    넘으면 필요한 줄 수를 먼저 구하고, 그 줄 수로 고르게 나눈다(8개·최대 7 → 4+4).
+    """
+    if n <= 0:
+        return 1
+    if n <= maxcols:
+        return n
+    rows = -(-n // maxcols)          # 올림 나눗셈
+    return -(-n // rows)
+
+
+def _tick_label(axis0, d, grid):
+    """눈금 글자. 첫 눈금과 연도가 바뀌는 눈금에는 연도를 붙인다 —
+    3년짜리 축에서 '01-04'가 세 번 나오면 어느 해인지 알 수 없다."""
+    day = axis0 + timedelta(days=d)
+    prev = axis0 + timedelta(days=grid[grid.index(d) - 1]) if d != grid[0] else None
+    if prev is None or prev.year != day.year:
+        return day.strftime("%Y-%m-%d")
+    return day.strftime("%m-%d")
 
 
 def compute(C, D):
     """검증을 통과한 config·data에서 화면 모델을 만든다."""
     T = C["text"]
+    TH = C["thresholds"]
     today = date.fromisoformat(D["today"])
     axis0 = today - timedelta(days=C["axis"]["leadDays"])
     span = C["axis"]["days"]
@@ -511,7 +776,8 @@ def compute(C, D):
 
     order = D["workOrder"]
     works = D["works"]
-    block_refs = {v["ref"] for v in D["violations"] if v["severity"] == "block"}
+    block_refs = {v["ref"] for v in D["violations"]
+                  if v["severity"] == "block" and "ref" in v}
 
     # ── 작업 뷰 모델 ──────────────────────────────────────────────────────
     wm = {}
@@ -521,20 +787,13 @@ def compute(C, D):
         wm[wid] = {
             "id": wid, "title": w["title"], "team": w["team"], "status": w["status"],
             "area": w["area"], "areaLabel": C["areas"][w["area"]]["label"],
-            "block": w.get("block", ""), "touches": w.get("touches"),
+            "block": w.get("block", ""), "touches": _touch_list(w),
             "progress": w.get("progress", 0),
             "s": di(w["planStart"]) if dated else None,
             "e": di(w["planEnd"]) if dated else None,
             "et": di(w["eta"]) if "eta" in w else None,
             "risk": wid in block_refs,
         }
-
-    def delay_days(wid):
-        """예상 종료가 계획 종료를 넘긴 일수. 넘기지 않았으면 0."""
-        w = wm[wid]
-        if w["e"] is None or w["et"] is None:
-            return 0
-        return max(0, w["et"] - w["e"])
 
     # ── 칸반 열 ──────────────────────────────────────────────────────────
     columns = []
@@ -556,13 +815,12 @@ def compute(C, D):
         waits = sum(1 for wid in ids if wm[wid]["block"] == "waiting")
         badges = []
         if conflicts:
-            badges.append({"label": f"{T['blockConflict']} {conflicts}", "tone": "r"})
+            badges.append({"label": _sub(T["areaBadgeConflict"], {"n": conflicts}), "tone": "r"})
         if waits:
-            badges.append({"label": f"{T['blockWaiting']} {waits}", "tone": "a"})
+            badges.append({"label": _sub(T["areaBadgeWaiting"], {"n": waits}), "tone": "a"})
         undated_n = len(ids) - len(dated)
-        cnt = f"{len(dated)}{T['countUnit']}"
-        if undated_n:
-            cnt += " · " + T["undatedSuffix"].format(n=undated_n)
+        cnt = _sub(T["areaCountUndated"], {"n": len(dated), "u": undated_n}) if undated_n \
+            else _sub(T["areaCount"], {"n": len(dated)})
         row = {"key": key, "label": area["label"], "works": ids, "dated": dated,
                "badges": badges, "cntText": cnt, "empty": not dated}
         if dated:
@@ -579,51 +837,84 @@ def compute(C, D):
     undated_ids = [wid for wid in order if wm[wid]["s"] is None]
 
     # ── 공용 자산 집계 ────────────────────────────────────────────────────
-    all_teams = len({wm[wid]["team"] for wid in order})
+    # 분모(all)의 뜻은 두 가지다. config.teams 명부를 선언했으면 '전체 팀 수',
+    # 선언하지 않았으면 '그 자산을 건드린 팀 수'. 어느 쪽이든 이 자산과 무관한
+    # 작업이 늘었다고 숫자가 흔들리지 않는다.
+    roster = C["teams"]
     assets = []
     for key, a in C["assets"].items():
-        linked = [wid for wid in order if wm[wid]["touches"] == key]
+        linked = [wid for wid in order if key in wm[wid]["touches"]]
         teams = len({wm[wid]["team"] for wid in linked})
         c_teams = len({wm[wid]["team"] for wid in linked if wm[wid]["block"] == "conflict"})
         w_teams = len({wm[wid]["team"] for wid in linked if wm[wid]["block"] == "waiting"})
+        denom = len(roster) if roster is not None else teams
         if c_teams:
-            sev, badge = "risk", T["assetBadgeConflict"].format(all=all_teams, n=c_teams)
+            sev = "risk"
+            badge = _sub(T["assetBadgeConflict"], {"all": denom, "n": c_teams})
         elif w_teams:
-            sev, badge = "warn", T["assetBadgeWaiting"].format(n=w_teams)
+            sev = "warn"
+            badge = _sub(T["assetBadgeWaiting"], {"all": denom, "n": w_teams})
         else:
             sev, badge = "ok", T["assetBadgeOk"]
         assets.append({"key": key, "label": a["label"], "plain": a["plain"],
                        "why": a.get("why", ""), "sev": sev, "badge": badge,
-                       "links": linked, "teams": teams,
+                       "links": linked, "teams": teams, "denom": denom,
                        "conflictTeams": c_teams, "waitTeams": w_teams})
     assets_by_key = {a["key"]: a for a in assets}
 
     # ── 자동 검사 집계 ────────────────────────────────────────────────────
+    # 핵심 규칙: **보고되지 않은 검사는 통과가 아니다.** data.checkRuns가 이번 회차에
+    # 무엇이 실제로 돌았는지 말해 주고, 말해 주지 않은 검사는 회색 '정보 없음'으로 남는다.
     sev_label = {"block": T["vioBlock"], "warn": T["vioWarn"]}
-    status_label = {"pass": T["checkPass"], "warn": T["checkWarn"], "block": T["checkBlock"]}
+    status_label = {"pass": T["checkPass"], "warn": T["checkWarn"], "block": T["checkBlock"],
+                    "skipped": T["checkSkipped"], "never": T["checkNever"],
+                    "unknown": T["checkUnknown"]}
+    runs = D["checkRuns"]
     checks = []
     for key, c in C["checks"].items():
         vios = [v for v in D["violations"] if v["check"] == key]
-        status = "block" if any(v["severity"] == "block" for v in vios) \
-            else "warn" if vios else "pass"
+        worst = "block" if any(v["severity"] == "block" for v in vios) \
+            else "warn" if vios else None
+        if runs is not None and key in runs:
+            result = runs[key]
+            if result == "pass":
+                status = "pass"
+            elif result == "fail":
+                status = worst or "warn"
+            else:
+                # 건너뜀·미실행이라고 보고했는데 위반이 올라와 있으면 그 검사는 분명히 돌았다.
+                # 올라온 사실이 보고보다 강하다 — 위반을 회색 뒤에 숨기지 않는다.
+                status = worst or result
+        elif worst:
+            # 실행 결과 보고가 없어도 위반이 올라왔다면 그 검사는 분명히 돌았다.
+            status = worst
+        else:
+            status = "unknown"
         checks.append({
             "key": key, "name": c["name"], "plain": c["plain"], "why": c.get("why", ""),
             "status": status, "statusLabel": status_label[status],
+            "reported": status not in GREY_CHECK_STATES,
             # 위반 문구는 참조된 작업의 제목을 그대로 쓴다 — 매번 새로 쓰는 설명문을 두지 않는다.
-            "violations": [{"ref": v["ref"], "what": wm[v["ref"]]["title"],
-                            "sevLabel": sev_label[v["severity"]]} for v in vios],
+            # 작업을 가리키지 않는 위반(저장소·의존성 단위)은 그 사실만 적는다.
+            "violations": [{"ref": v.get("ref", ""),
+                            "what": wm[v["ref"]]["title"] if "ref" in v else T["vioNoTarget"],
+                            "sevLabel": sev_label[v["severity"]],
+                            "sev": v["severity"]} for v in vios],
         })
     checks_by_key = {c["key"]: c for c in checks}
     pass_checks = sum(1 for c in checks if c["status"] == "pass")
+    unknown_checks = sum(1 for c in checks if c["status"] in GREY_CHECK_STATES)
 
     # ── 밴드 1 카드 — 읽는 문장과 심각도를 지표 종류별로 계산 ─────────────
     cards = {}
     traces = {}
+    ctx = {"assets": assets_by_key, "checks": checks_by_key, "nChecks": len(checks),
+           "passChecks": pass_checks, "unknownChecks": unknown_checks,
+           "undated": undated_ids, "today": today}
     for key in C["cardOrder"]:
         card = C["cards"][key]
-        sev, reading, trace = _metric(card["metric"], C, D, T, wm, order, assets_by_key,
-                                      checks_by_key, len(checks), pass_checks, undated_ids, today)
-        for ck in card.get("traceChecks", []) or []:
+        sev, reading, trace = _metric(card["metric"], C, D, TH, wm, order, ctx)
+        for ck in (card.get("traceChecks") or []):
             trace.setdefault("checks", [])
             if ck not in trace["checks"]:
                 trace["checks"].append(ck)
@@ -639,10 +930,13 @@ def compute(C, D):
         lane = C["lanes"][lkey]
         mine = [cards[k] for k in C["cardOrder"] if cards[k]["lane"] == lkey]
         mine.sort(key=lambda c: SEV_ORDER[c["severity"]])   # 안정 정렬 — 같은 급이면 선언 순서
-        shown, rest = mine[:LANE_MAX_CARDS], len(mine) - min(len(mine), LANE_MAX_CARDS)
+        shown = min(len(mine), TH["laneMaxCards"])
+        rest = len(mine) - shown
+        # 접힌 카드도 payload에 담는다. 화면에서 셀 수 있는 것은 화면에서 열 수도 있어야 한다.
         lanes.append({"key": lkey, "label": lane["label"], "en": lane.get("en", ""),
-                      "count": len(mine), "cards": shown,
-                      "moreText": T["laneMore"].format(n=rest) if rest else ""})
+                      "count": len(mine), "cards": mine, "shown": shown,
+                      "moreText": _sub(T["laneMore"], {"n": rest}) if rest else "",
+                      "lessText": T["laneLess"]})
 
     # ── 종합 판정 ────────────────────────────────────────────────────────
     has_risk = any(c["severity"] == "risk" for c in cards.values()) \
@@ -651,128 +945,175 @@ def compute(C, D):
     vkey = "risk" if has_risk else "warn" if has_warn else "ok"
     verdict = dict(C["verdicts"][vkey])
     verdict["tone"] = TONES[DEFAULT_VERDICTS[vkey]["tone"]]
+    # 초록 램프가 "다 확인했다"로 읽히지 않게, 모르는 만큼을 램프 옆에 같이 적는다.
+    verdict["noData"] = _sub(T["verdictNoData"], {"unknown": unknown_checks}) \
+        if unknown_checks else ""
     decides = sum(1 for c in cards.values() if c["decide"])
 
     # ── 의존선 ───────────────────────────────────────────────────────────
     links = []
     for wid in order:
-        for dep in works[wid].get("deps", []) or []:
+        deps = works[wid].get("deps") or []
+        deps = [deps] if isinstance(deps, str) else deps
+        for dep in deps:
             if wm[dep]["e"] is not None and wm[wid]["s"] is not None:
                 links.append([dep, wid])
 
     # ── 축 ───────────────────────────────────────────────────────────────
+    # 축 밖으로 나간 계획은 조용히 사라지면 안 된다. 좌표는 잘라 그리되,
+    # 축 양끝에 "축 이전/이후 n건"을 붙여 무엇이 안 보이는지 화면에서 말한다.
     tick = C["axis"]["tickDays"]
     grid = list(range(0, span + 1, tick))
+    off_before = [wid for wid in order if wm[wid]["s"] is not None and wm[wid]["s"] < 0]
+    off_after = [wid for wid in order if wm[wid]["e"] is not None
+                 and max(wm[wid]["e"], wm[wid]["et"] or wm[wid]["e"]) > span]
     axis = {
         "days": span,
         "gridlines": grid,
-        "ticks": [{"d": d, "label": (axis0 + timedelta(days=d)).strftime("%m-%d")} for d in grid],
+        "ticks": [{"d": d, "label": _tick_label(axis0, d, grid)} for d in grid],
         "todayD": di(D["today"]),
         "targetD": di(D["target"]["date"]) if D["target"] else None,
+        "offBeforeText": _sub(T["axisOffBefore"], {"n": len(off_before)}) if off_before else "",
+        "offAfterText": _sub(T["axisOffAfter"], {"n": len(off_after)}) if off_after else "",
+        "offTip": T["axisOffTip"],
     }
 
     # ── 기획 정합성 막대 ──────────────────────────────────────────────────
     drift_m = None
     if D["drift"]:
-        drift_m = {"reading": [
-            _seg(C["drift"]["gapLabel"] + " "), _seg(f"{D['drift']['gaps']}{T['countUnit']}", ""),
-            _seg(" 누적 · " + C["drift"]["pivotLabel"] + " "),
-            _seg(f"{D['drift']['pivots']}{T['countUnit']}", ""),
-        ]}
+        drift_m = {"reading": _read("drift", "i",
+                                    gapLabel=C["drift"]["gapLabel"],
+                                    pivotLabel=C["drift"]["pivotLabel"],
+                                    gaps=D["drift"]["gaps"], pivots=D["drift"]["pivots"])}
 
     return {
         "updated": D["updated"] or D["today"],
         "byId": wm, "columns": columns, "rollup": rollup, "undated": undated_ids,
-        "undatedCntText": f"{len(undated_ids)}{T['countUnit']}",
+        "undatedCntText": _sub(T["undatedCount"], {"n": len(undated_ids)}),
         "assets": assets, "checks": checks, "lanes": lanes, "traces": traces,
         "cardTitle": {k: c["title"] for k, c in cards.items()},
         "verdict": verdict, "decides": decides, "links": links, "drift": drift_m,
+        "passChecks": pass_checks, "unknownChecks": unknown_checks,
+        # 격자 열 수 — 선언한 개수를 따른다(4열·6열에 박아 두지 않는다).
+        "cols": {"lanes": _grid_cols(len(lanes), MAX_COLS["lanes"]),
+                 "kanban": _grid_cols(len(columns), MAX_COLS["kanban"]),
+                 "checks": _grid_cols(len(checks), MAX_COLS["checks"]),
+                 "assets": _grid_cols(len(assets), MAX_COLS["assets"])},
     }, axis
 
 
-def _metric(metric, C, D, T, wm, order, assets, checks, n_checks, pass_checks, undated, today):
+def _metric(metric, C, D, TH, wm, order, ctx):
     """지표 한 종류를 계산한다 → (심각도, 읽는 문장 조각들, 연결 대상).
 
-    읽는 문장의 **문법**은 엔진이 고정하고, 그 안에 들어가는 **이름**(제품 영역·상태·
-    공용 자산·기획 용어)만 config에서 온다. 그래서 매 실행 같은 문장이 나오고,
-    사람이 새 문장을 지어 넣을 자리가 없다.
+    문장의 **문법은 엔진이 고정**(READ)하고, 그 안에 들어가는 **이름**(제품 영역·상태·
+    공용 자산·기획 용어)만 config에서 온다. 숫자는 전부 여기서 데이터를 세어 만든다.
+    그래서 매 실행 같은 문장이 나오고, 사람이 새 문장을 지어 넣을 자리가 없다.
     """
     kind = metric["kind"]
-    unit = T["countUnit"]
 
     if kind == "asset":
-        a = assets[metric["asset"]]
-        all_teams = len({wm[w]["team"] for w in order})
+        a = ctx["assets"][metric["asset"]]
         if a["conflictTeams"]:
-            reading = [_seg(f"{all_teams}팀 중 "), _seg(f"{a['conflictTeams']}팀", "r"),
-                       _seg("이 서로 다르게 고쳤다")]
+            reading = _read("assetConflict", "r", all=a["denom"], n=a["conflictTeams"])
         elif a["waitTeams"]:
-            reading = [_seg(f"{a['waitTeams']}팀", "a"), _seg("이 등록을 마치고 승인을 기다린다")]
+            reading = _read("assetWaiting", "a", all=a["denom"], n=a["waitTeams"])
         else:
-            reading = [_seg("충돌 없음 — "), _seg(f"{a['teams']}팀", "g"), _seg("이 같은 값을 쓴다")]
+            reading = _read("assetOk", "g", all=a["denom"], n=a["teams"])
         return a["sev"], reading, {"work": list(a["links"]), "assets": [a["key"]]}
 
     if kind == "check":
-        c = checks[metric["check"]]
+        c = ctx["checks"][metric["check"]]
         n = len(c["violations"])
-        tail = [_seg(f"{T['checksLabel']} {n_checks}개 중 "), _seg(f"{pass_checks}개", "g"),
-                _seg(" 통과")]
-        if n:
-            reading = [_seg("위반 후보 "), _seg(f"{n}{unit}", "a"), _seg(" · ")] + tail
-            sev = "warn"
-        else:
-            reading = [_seg("위반 없음 · ")] + tail
-            sev = "ok"
-        return sev, reading, {"work": [v["ref"] for v in c["violations"]], "checks": [c["key"]]}
+        # 밴드 1의 심각도와 밴드 3의 상태는 같은 사실에서 나와야 한다.
+        # 막힘 위반이면 위험, 주의 위반이면 주의, 통과면 정상, 보고가 없으면 참고(회색).
+        sev = {"block": "risk", "warn": "warn", "pass": "ok"}.get(c["status"], "info")
+        head_key = "checkHit" if n else ("checkClean" if c["reported"] else "checkNoRun")
+        head = _read(head_key, SEV_EM[sev], n=n)
+        tail_key = "checkTailUnknown" if ctx["unknownChecks"] else "checkTail"
+        tail = _read(tail_key, "g", all=ctx["nChecks"],
+                     **{"pass": ctx["passChecks"], "unknown": ctx["unknownChecks"]})
+        return sev, head + tail, {"work": [v["ref"] for v in c["violations"] if v["ref"]],
+                                  "checks": [c["key"]]}
 
     if kind == "area_stalled":
         ids = [w for w in order if wm[w]["area"] == metric["area"]]
         stalled = [(D["works"][w].get("stalledDays", 0), w) for w in ids]
         days, worst = max(stalled) if stalled else (0, None)
         if not days:
-            return "ok", [_seg("멈춰 있는 작업 없음")], {"work": ids}
+            return "ok", _read("stallNone", "g"), {"work": ids}
+        sev = "risk" if days >= TH["stallRiskDays"] else "warn"
         label = C["statuses"][wm[worst]["status"]]["label"]
-        reading = [_seg(label + _josa(label, "이", "가") + " "), _seg(f"{days}일", "a"),
-                   _seg("째 움직이지 않는다")]
-        return ("risk" if days >= STALL_RISK_DAYS else "warn"), reading, {"work": ids}
+        return sev, _read("stall", SEV_EM[sev], label=label,
+                          josa=_josa(label, "이", "가"), days=days), {"work": ids}
 
     if kind == "area_delay":
         ids = [w for w in order if wm[w]["area"] == metric["area"]]
         late = [(w, wm[w]["et"] - wm[w]["e"]) for w in ids
                 if wm[w]["e"] is not None and wm[w]["et"] is not None and wm[w]["et"] > wm[w]["e"]]
         if not late:
-            return "ok", [_seg("계획보다 늦은 작업 없음")], {"work": ids}
+            return "ok", _read("delayNone", "g"), {"work": ids}
         worst = max(d for _, d in late)
-        reading = [_seg(f"{len(late)}{unit}", "a"), _seg("이 계획보다 "),
-                   _seg(f"{worst}일", "a"), _seg(" 늦다")]
-        return ("risk" if worst >= DELAY_RISK_DAYS else "warn"), reading, \
-               {"work": [w for w, _ in late]}
+        sev = "risk" if worst >= TH["delayRiskDays"] else "warn"
+        return sev, _read("delay", SEV_EM[sev], n=len(late), days=worst), \
+            {"work": [w for w, _ in late]}
 
     if kind == "undated":
+        undated = ctx["undated"]
         if not undated:
-            return "ok", [_seg("모든 작업이 시간 축에 올라가 있다")], {"work": []}
-        return "warn", [_seg(f"{len(undated)}{unit}", "a"),
-                        _seg("이 아직 시간 축에 올라가지 못했다")], {"work": list(undated)}
+            return "ok", _read("undatedNone", "g"), {"work": []}
+        return "warn", _read("undated", "a", n=len(undated)), {"work": list(undated)}
 
     if kind == "status_recent":
         skey = metric["status"]
         label = C["statuses"][skey]["label"]
+        window = TH["recentDays"]
         recent = []
         for w in order:
             if wm[w]["status"] != skey:
                 continue
-            end = D["works"][w].get("planEnd")
-            if end and 0 <= (today - date.fromisoformat(end)).days <= RECENT_DAYS:
+            # 실제 완료일이 있으면 그것을 쓰고, 없을 때만 계획 종료일로 물러난다.
+            # 늦게 나간 것을 안 세거나, 계획 날짜가 없는 작업을 영원히 0으로 두지 않기 위해서다.
+            when = D["works"][w].get("completedAt") or D["works"][w].get("planEnd")
+            if when and 0 <= (ctx["today"] - date.fromisoformat(when)).days <= window:
                 recent.append(w)
-        reading = [_seg(f"{T['recentPrefix']} {label} "), _seg(f"{len(recent)}{unit}", "g")]
-        return "info", reading, {"work": recent}
+        return "info", _read("recent", "g", label=label, n=len(recent), days=window), \
+            {"work": recent}
 
     if kind == "drift":
         d = D["drift"]
-        reading = [_seg(C["drift"]["gapLabel"] + " "), _seg(f"{d['gaps']}{unit}", "i"),
-                   _seg(" 누적 · " + C["drift"]["pivotLabel"] + " "),
-                   _seg(f"{d['pivots']}{unit}", "i")]
-        return "info", reading, {"work": [w for w in order if D["works"][w].get("drift")]}
+        return "info", _read("drift", "i", gapLabel=C["drift"]["gapLabel"],
+                             pivotLabel=C["drift"]["pivotLabel"],
+                             gaps=d["gaps"], pivots=d["pivots"]), \
+            {"work": [w for w in order if D["works"][w].get("drift")]}
+
+    if kind == "count":
+        # 프로젝트가 직접 고른 조건으로 작업을 센다 — 지표 7종에 없는 걱정거리를 위한 탈출구.
+        # 숫자를 손으로 적는 것이 아니라 조건을 선언하면 엔진이 데이터에서 센다.
+        match = metric["match"]
+        hits = []
+        for w in order:
+            src = D["works"][w]
+            ok = True
+            for f, val in match.items():
+                if f == "touches":
+                    ok = ok and (val in _touch_list(src))
+                elif f == "drift":
+                    ok = ok and (bool(src.get("drift")) == bool(val))
+                else:
+                    ok = ok and (src.get(f) == val)
+            if ok:
+                hits.append(w)
+        n = len(hits)
+        risk_at, warn_at = metric.get("riskAt"), metric.get("warnAt", 1)
+        if risk_at is not None and n >= risk_at:
+            sev = "risk"
+        elif n and n >= warn_at:
+            sev = "warn"
+        else:
+            sev = "ok" if n == 0 else "info"
+        if not n:
+            return sev, _read("countNone", SEV_EM[sev]), {"work": []}
+        return sev, _read("count", SEV_EM[sev], n=n), {"work": hits}
 
     raise AssertionError(f"검증을 통과했는데 모르는 지표 종류: {kind}")   # 도달 불가
 
@@ -865,7 +1206,8 @@ def main(argv=None):
     print(f"통합 현황판을 만들었습니다 → {out}")
     print(f"  판정 {m['verdict']['word']} · 결정 필요 {m['decides']}건 · "
           f"작업 {len(m['byId'])}건(일정 미정 {len(m['undated'])}) · "
-          f"공용 자산 {len(m['assets'])} · 자동 검사 {len(m['checks'])} · "
+          f"공용 자산 {len(m['assets'])} · "
+          f"자동 검사 {len(m['checks'])}(통과 {m['passChecks']} · 미보고 {m['unknownChecks']}) · "
           f"{len(html.encode('utf-8')):,} bytes")
     return 0
 
