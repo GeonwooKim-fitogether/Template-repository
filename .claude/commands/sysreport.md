@@ -47,8 +47,21 @@ argument-hint: [선택 — 특정 파트만(change/home/quality/specification/pr
 
 ## 4. 출력 형태
 
-- **정식 종합은 자체완결 HTML 아티팩트로 띄운다**(규칙 6). 현황판(파트×상태 격자)과 결정 큐(우선순위 정렬)를 한 페이지에. 인라인 CSS/JS + data-URI(외부 의존 0), GC 디자인 토큰(청록 `--teal #2b7a78`·시그널 `--signal`·상태색 green/amber/red), 라이트·다크 양쪽 대응.
-- **가벼운 갱신은 채팅 몇 줄로** 족하다. 판돈에 맞춘다 — 사소한 상태 확인에 매번 큰 아티팩트를 만들지 않는다.
+- **정식 종합은 매번 HTML을 새로 쓰지 않는다.** 모은 사실을 `.integration/board.json`에 **스키마대로** 적은 뒤, `integration-board` 스킬의 고정 엔진으로 렌더한다.
+
+  ```
+  python3 .claude/skills/integration-board/assets/integration_board_engine.py \
+    --config .integration/board.config.json \
+    --data   .integration/board.json \
+    --out    integration-board.html
+  ```
+
+  스키마와 지표 목록은 [`.claude/skills/integration-board/reference/board-schema.md`](../skills/integration-board/reference/board-schema.md)에 있다. 이렇게 하는 이유는 세 가지다. 첫째, 판이 매번 같아 총괄이 매번 새로 해석하지 않아도 된다. 둘째, 판정·건수·롤업을 엔진이 계산하므로 숫자를 손으로 옮겨 적다 틀릴 일이 없다. 셋째, data 스키마에 자유 서술 필드가 없어 보고서가 산문으로 불어나지 않는다.
+
+  **네가 채우는 것은 사실뿐이다** — 작업 목록·상태·날짜·검사 위반. 판정("위험"), 건수("결정 필요 2건"), 요약문을 data에 적으려 하면 엔진이 거부한다. 그것들은 도출값이다. 프로젝트에 `.integration/board.config.json`이 아직 없으면 스킬의 `assets/board.config.example.json`을 복사해 그 프로젝트 어휘로 채운 뒤 시작한다.
+
+- **결정 큐는 보드의 "결정 필요" 카드와 짝이 맞아야 한다.** 총괄이 답해야 진행되는 항목은 config의 카드에 `decide: true`로 선언해 두고, 채팅에는 그 항목의 선택지와 권고안을 적는다. 보드는 "무엇이 걸렸나"를, 채팅은 "그래서 무엇을 답해야 하나"를 맡는다.
+- **가벼운 갱신은 채팅 몇 줄로** 족하다. 판돈에 맞춘다 — 사소한 상태 확인에 매번 보드를 다시 렌더하지 않는다.
 - 아티팩트를 갱신할 때는 **같은 파일 경로로 재게시**해 링크가 바뀌지 않게 한다.
 
 ## 5. 하지 않는 것
