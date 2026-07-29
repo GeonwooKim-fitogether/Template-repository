@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>integration-board 사용 안내서</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   integration-board 사용 안내서 — 자체완결(외부 요청 0).
+   색·글꼴은 assets/board_template.html 의 :root 를 옮겨 담았다. 안내서를 읽고
+   보드를 열었을 때 같은 물건으로 느껴지게 하기 위한 것이고, 여기 없는 색을
+   새로 지어내지 않는다.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --teal:#2b7a78; --teal-bg:#eaf5f4;
+  --page:#f4f5f6; --card:#ffffff;
+  --border:#e3e6e8; --border-strong:#d4d8db;
+  --ink:#2f3b43; --strong:#1d2a32; --muted:#6b7780; --dim:#94a1aa;
+  --link:#1668d4;
+  --code-bg:#fbfbfc; --code-ink:#28323a;
+  --fs-hero:21px; --fs-h:15px; --fs-body:13px; --fs-sm:11.5px; --fs-xs:10.5px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
+  --r-sm:4px; --r-md:6px; --r-lg:8px;
+  --sh-1:0 1px 2px rgba(40,55,66,.06);
+  --mono:"JetBrains Mono","Consolas",ui-monospace,monospace;
+  --sans:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",
+    Arial,"Noto Sans","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",
+    "Hiragino Sans","Noto Sans JP","Noto Sans SC",sans-serif;
+}
+/* Ground Control 다크 — 보드의 다크 표면과 같은 값 */
+:root[data-theme="gc"]{
+  --teal:#31d4bf; --teal-bg:#12403a;
+  --page:#0b2422; --card:#10302c;
+  --border:#1d423d; --border-strong:#2b5b55;
+  --ink:#e4f1ed; --strong:#f5fbf9; --muted:#93aeaa; --dim:#6f8b87;
+  --link:#6cb6f0;
+  --code-bg:#0d2825; --code-ink:#d9ece7;
+  --sh-1:0 1px 2px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--page);color:var(--ink);font-family:var(--sans);
+  font-size:var(--fs-body);line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:940px;margin:0 auto;padding:var(--sp-5) var(--sp-4) 56px}
+
+/* ── 머리 ─────────────────────────────────────────────────────────── */
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);
+  border-bottom:1.6px solid var(--border-strong);padding-bottom:var(--sp-4)}
+.eyebrow{font-family:var(--mono);font-size:var(--fs-xs);color:var(--dim);
+  letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:var(--fs-hero);font-weight:700;color:var(--strong);margin:var(--sp-2) 0 0}
+.lead{margin:var(--sp-2) 0 0;color:var(--muted);max-width:64ch}
+
+/* 버튼 — 화면에 실제 동작 버튼은 두 종류(Theme, Copy)뿐이고 둘 다 같은 기본형이다.
+   강조를 쓰지 않는다: 이 문서에서 도드라져야 하는 것은 해부도 하나다. */
+button{font-family:var(--sans);font-size:var(--fs-sm);color:var(--muted);
+  background:var(--card);border:1px solid var(--border-strong);border-radius:var(--r-sm);
+  padding:5px 11px;cursor:pointer;line-height:1.2;white-space:nowrap}
+button:hover{color:var(--strong);border-color:var(--muted)}
+button:active{transform:translateY(.5px)}
+button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+/* ── 절 ───────────────────────────────────────────────────────────── */
+section{margin-top:var(--sp-5)}
+h2{font-size:var(--fs-h);font-weight:700;color:var(--strong);margin:0 0 var(--sp-3);
+  display:flex;align-items:baseline;gap:var(--sp-2)}
+h2 i{font-family:var(--mono);font-style:normal;font-size:var(--fs-xs);color:var(--dim)}
+p{margin:0 0 var(--sp-3);max-width:74ch}
+.note{color:var(--muted);font-size:var(--fs-sm)}
+code{font-family:var(--mono);font-size:var(--fs-sm);color:var(--strong);
+  background:var(--card);border:1px solid var(--border);border-radius:3px;padding:0 4px}
+a{color:var(--link);text-decoration:none;border-bottom:1px solid transparent}
+a:hover{border-bottom-color:currentColor}
+
+/* ── 쓸지 판단하는 네 칸 ──────────────────────────────────────────── */
+.judge{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)}
+.j{background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:var(--sp-3) var(--sp-3) var(--sp-3) 14px;box-shadow:var(--sh-1);position:relative}
+.j::before{content:"";position:absolute;left:0;top:var(--sp-3);bottom:var(--sp-3);
+  width:3px;border-radius:3px;background:var(--border-strong)}
+.j.yes::before{background:var(--teal)}
+.j b{display:block;color:var(--strong);font-size:var(--fs-body);margin-bottom:2px}
+.j span{color:var(--muted);font-size:var(--fs-sm)}
+
+/* ── 해부도 ───────────────────────────────────────────────────────── */
+figure{margin:0}
+.plate{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--sp-2);box-shadow:var(--sh-1);overflow-x:auto}
+/* 좁은 화면에서 그림을 통째로 줄이면 안의 글자가 읽히지 않는다. 최소 폭을 지키고
+   가로로 넘겨 보게 한다(아래 .swipe 안내). */
+#anatomy{display:block;width:100%;height:auto;min-width:860px}
+#anatomy .pinlink{cursor:pointer}
+#anatomy .pinlink,#anatomy .pinlink *{transition:opacity .12s}
+#anatomy.pinning .pinlink{opacity:.22}
+#anatomy.pinning .pinlink.on{opacity:1}
+.swipe{display:none;color:var(--dim);font-size:var(--fs-xs);margin:var(--sp-1) 0 0}
+/* 그림이 실제로 가로 스크롤되기 시작하는 폭(그림 최소 860px + 여백)에서 안내를 켠다. */
+@media (max-width:910px){.swipe{display:block}}
+
+/* ── 코드 블록 ────────────────────────────────────────────────────── */
+.cb{margin:0 0 var(--sp-3);border:1px solid var(--border);border-radius:var(--r-md);
+  background:var(--code-bg);overflow:hidden}
+.cb-h{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);
+  padding:6px var(--sp-2) 6px var(--sp-3);border-bottom:1px solid var(--border);
+  background:var(--card)}
+.cb-t{font-family:var(--mono);font-size:var(--fs-xs);color:var(--dim);letter-spacing:.04em}
+.cb pre{margin:0;padding:var(--sp-3);overflow-x:auto;font-family:var(--mono);
+  font-size:var(--fs-sm);line-height:1.7;color:var(--code-ink);tab-size:2}
+.cb.out pre{color:var(--muted)}
+
+/* ── 더 깊이 볼 곳 ───────────────────────────────────────────────── */
+.more{border-top:1px solid var(--border);margin-top:var(--sp-5);padding-top:var(--sp-4)}
+.more dl{margin:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);
+  gap:var(--sp-1) var(--sp-4)}
+.more dt{color:var(--muted);font-size:var(--fs-sm);min-width:0}
+.more dd{margin:0;font-family:var(--mono);font-size:var(--fs-sm);text-align:right}
+
+/* ── 좁은 폭 ─────────────────────────────────────────────────────── */
+@media (max-width:720px){
+  .wrap{padding:var(--sp-4) var(--sp-3) 40px}
+  .judge{grid-template-columns:1fr}
+  .more dl{grid-template-columns:1fr;gap:0}
+  .more dd{text-align:left;margin:0 0 var(--sp-2)}
+  h1{font-size:18px}
+}
+
+/* ── 인쇄 ────────────────────────────────────────────────────────── */
+@media print{
+  /* 어두운 테마로 보던 중에 인쇄해도 종이에서는 밝은 값으로 되돌린다.
+     다크 선택자(:root[data-theme="gc"])와 같은 특정도로 함께 덮어야 이긴다. */
+  :root,:root[data-theme="gc"]{
+    --page:#fff; --card:#fff; --code-bg:#fff; --code-ink:#111; --sh-1:none;
+    --ink:#1a1a1a; --strong:#000; --muted:#3d3d3d; --dim:#666;
+    --border:#c9cdd0; --border-strong:#9aa0a4; --teal:#2b7a78; --link:#000;
+  }
+  body{background:#fff;color:var(--ink);font-size:10.5pt}
+  .wrap{max-width:none;padding:0}
+  button,.swipe{display:none !important}
+  /* 쪼개지면 안 되는 것만 붙여 둔다. 절 전체를 묶으면 한 페이지가 반쯤 비어 버린다. */
+  figure,.cb,.j,.more dl{break-inside:avoid;page-break-inside:avoid}
+  h2{break-after:avoid;page-break-after:avoid}
+  .plate{overflow:visible;border-color:#bbb}
+  /* 종이에는 가로 스크롤이 없다. 긴 줄은 잘라 버리지 말고 접어서 다 보이게 한다. */
+  .cb pre{white-space:pre-wrap;overflow:visible;word-break:break-word}
+  #anatomy{min-width:0}
+  a{color:#000}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <div>
+    <div class="eyebrow">Skill · integration-board</div>
+    <h1>사용 안내서</h1>
+    <p class="lead">여러 팀의 일이 하나의 제품으로 맞물리는지 보여 주는 현황판 HTML 한 장을,
+      매 실행 같은 판으로 만든다. 달라지는 것은 숫자뿐이다.</p>
+  </div>
+  <button id="theme" aria-pressed="false">Dark</button>
+</div>
+
+<section>
+  <h2><i>01</i> 쓸지 30초 안에 판단하기</h2>
+  <div class="judge">
+    <div class="j yes"><b>이럴 때 쓴다</b><span>여러 팀의 상태를 한 장에 모아 “지금 무엇을 결정해야 하나”를 보여야 할 때.</span></div>
+    <div class="j"><b>이럴 때 안 쓴다</b><span>한 팀의 할 일 목록일 때, 또는 판을 우리 마음대로 새로 디자인하고 싶을 때(판은 고정이다).</span></div>
+    <div class="j"><b>팀이 둘뿐이어도 된다</b><span>격자는 선언한 개수만큼 나뉜다. 아래 최소 예시도 팀 둘에 카드 하나다.</span></div>
+    <div class="j"><b>CI가 없어도 된다</b><span>검사를 선언하지 않으면 그 자리가 화면에서 사라지고, 보고하지 않은 검사는 초록이 아니라 회색 ‘정보 없음’으로 남는다.</span></div>
+  </div>
+</section>
+
+<section>
+  <h2><i>02</i> 무엇이 나오나 — 그리고 어느 글자를 누가 쓰나</h2>
+  <p>보드는 세 밴드로 나온다. 아래 그림에서 회색 막대는 글자가 들어갈 자리이고, 색은 그 글자를 누가 쓰는지를 뜻한다.
+    번호 핀을 누르거나 마우스를 올리면 그 번호만 남아, 그림의 자리와 오른쪽 설명이 서로를 가리킨다.</p>
+  <figure>
+    <div class="plate"><svg xmlns="http://www.w3.org/2000/svg" id="anatomy" viewBox="0 0 1000 780" role="img"
+     aria-labelledby="anatomy-ttl anatomy-desc">
+<title id="anatomy-ttl">통합 현황판 해부도 — 어느 글자를 누가 쓰나</title>
+<desc id="anatomy-desc">보드 화면을 회색 막대 와이어프레임으로 그리고, 각 글자 자리의 출처를 세 가지 색(파랑=config, 초록=data, 주황=엔진 계산)으로 표시한 그림.</desc>
+<style>
+  #anatomy text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Noto Sans",sans-serif;fill:#4a555d}
+  #anatomy .h1{font-size:16.5px;font-weight:700;fill:#1d2a32}
+  #anatomy .lead{font-size:11.5px;fill:#5c666e}
+  #anatomy .h2{font-size:12.5px;font-weight:700;fill:#1d2a32}
+  #anatomy .t{font-size:11.5px}
+  #anatomy .tb{font-size:11.5px;font-weight:700;fill:#28323a}
+  #anatomy .ts{font-size:10px;fill:#7d878e}
+  #anatomy .tn{font-size:10.5px;fill:#6b7780}
+  #anatomy .cap{font-size:9.5px;fill:#98a2a8;letter-spacing:.08em}
+  #anatomy .pn{font-size:10.5px;font-weight:700;text-anchor:middle}
+  #anatomy .bar{fill:#cbd1d5}#anatomy .bar2{fill:#dfe3e6}#anatomy .bar3{fill:#e9ecee}
+  #anatomy .box{fill:#fff;stroke:#d6dbde}#anatomy .boxq{fill:#fcfcfb;stroke:#e3e7e9}
+  #anatomy .chip{fill:#edefef;stroke:#dfe3e6}
+  #anatomy .cfg{fill:#2f6ad0}#anatomy .dat{fill:#12905d}#anatomy .eng{fill:#d9761a}
+  #anatomy .pin{fill:#fff;stroke-width:2}
+  #anatomy .pcfg{stroke:#2f6ad0}#anatomy .pdat{stroke:#12905d}#anatomy .peng{stroke:#d9761a}
+</style>
+
+<rect width="1000" height="780" fill="#f7f6f3"/>
+
+<!-- ── 제목과 이 그림의 주장 ───────────────────────────────── -->
+<text class="h1" x="20" y="28">통합 현황판 해부도 — 어느 글자를 누가 쓰나</text>
+<text class="lead" x="20" y="48">보드는 자기 밴드 이름은 화면에 인쇄한다. 그러나 어느 글자가 내 config에서 왔고 어느 숫자를 엔진이 계산했는지는 인쇄하지 않는다.</text>
+
+<!-- ── 왼쪽 · 보드 와이어프레임 ────────────────────────────── -->
+<rect x="20" y="62" width="600" height="700" rx="8" fill="#fff" stroke="#d9dde0"/>
+
+<!-- 머리 -->
+<rect class="bar"  x="32" y="80"  width="150" height="13"/>
+<rect class="bar2" x="32" y="99"  width="200" height="7"/>
+<rect class="bar3" x="452" y="82" width="156" height="6"/>
+<rect class="bar3" x="486" y="94" width="122" height="6"/>
+<line x1="32" y1="114" x2="608" y2="114" stroke="#8c979e" stroke-width="1.6"/>
+
+<!-- 색 범례 줄 -->
+<rect class="box" x="32" y="122" width="576" height="20" rx="5"/>
+<circle cx="48"  cy="132" r="3.5" fill="#c3c9cd"/><rect class="bar3" x="58"  y="129" width="64" height="6"/>
+<circle cx="154" cy="132" r="3.5" fill="#c3c9cd"/><rect class="bar3" x="164" y="129" width="64" height="6"/>
+<circle cx="260" cy="132" r="3.5" fill="#c3c9cd"/><rect class="bar3" x="270" y="129" width="64" height="6"/>
+<circle cx="366" cy="132" r="3.5" fill="#c3c9cd"/><rect class="bar3" x="376" y="129" width="64" height="6"/>
+<circle cx="472" cy="132" r="3.5" fill="#c3c9cd"/><rect class="bar3" x="482" y="129" width="64" height="6"/>
+
+<!-- 밴드 1 -->
+<rect class="chip" x="32" y="152" width="44" height="15" rx="7.5"/>
+<text class="cap" x="54" y="163" text-anchor="middle" font-size="8.5px">밴드 1</text>
+<rect class="bar"  x="84" y="154" width="66" height="11"/>
+<rect class="bar3" x="158" y="157" width="58" height="6"/>
+<rect class="bar3" x="470" y="157" width="138" height="6"/>
+
+<rect class="box" x="32" y="174" width="134" height="138" rx="6"/>
+<rect x="32" y="174" width="3.5" height="138" fill="#a6afb5"/>
+<circle cx="50" cy="198" r="6" fill="none" stroke="#d9761a" stroke-width="2.6"/>
+<rect class="bar"  x="62" y="190" width="54" height="16"/><rect class="eng" x="62" y="209" width="54" height="3"/>
+<rect class="bar2" x="44" y="222" width="110" height="6"/><rect class="cfg" x="44" y="231" width="110" height="2"/>
+<rect class="bar2" x="44" y="238" width="84" height="6"/>
+<line x1="44" y1="252" x2="154" y2="252" stroke="#dfe3e6" stroke-dasharray="3 3"/>
+<rect class="bar"  x="44" y="260" width="22" height="22" rx="3"/><rect class="eng" x="44" y="285" width="22" height="3"/>
+<rect class="bar2" x="72" y="266" width="74" height="8"/>
+<rect class="bar3" x="44" y="294" width="104" height="5"/>
+<rect class="bar3" x="44" y="302" width="80" height="5"/>
+
+<rect class="bar" x="174" y="174" width="58" height="11"/><rect class="cfg" x="174" y="188" width="58" height="2.5"/>
+<rect class="chip" x="368" y="174" width="20" height="11" rx="5"/>
+<rect class="bar" x="398" y="174" width="58" height="11"/><rect class="cfg" x="398" y="188" width="58" height="2.5"/>
+<rect class="chip" x="588" y="174" width="20" height="11" rx="5"/>
+
+<rect class="box" x="174" y="198" width="216" height="114" rx="5"/>
+<rect x="174" y="198" width="3.5" height="114" fill="#a6afb5"/>
+<rect class="bar" x="196" y="210" width="74" height="12"/><rect class="cfg" x="196" y="225" width="74" height="3"/>
+<rect x="280" y="211" width="38" height="11" rx="3" fill="#f2f0ec" stroke="#dcd7cd"/>
+<rect class="bar" x="196" y="238" width="158" height="11"/><rect class="eng" x="196" y="252" width="158" height="3"/>
+<rect class="bar3" x="196" y="266" width="18" height="6"/>
+<rect class="bar2" x="222" y="266" width="148" height="6"/><rect class="cfg" x="222" y="275" width="148" height="2"/>
+<rect class="bar3" x="196" y="288" width="24" height="6"/>
+<rect class="bar2" x="228" y="288" width="142" height="6"/><rect class="cfg" x="228" y="297" width="142" height="2"/>
+
+<rect class="box" x="398" y="198" width="210" height="100" rx="5"/>
+<rect x="398" y="198" width="3.5" height="100" fill="#a6afb5"/>
+<rect class="bar" x="420" y="210" width="70" height="12"/><rect class="cfg" x="420" y="225" width="70" height="3"/>
+<rect class="bar" x="420" y="238" width="150" height="11"/><rect class="eng" x="420" y="252" width="150" height="3"/>
+<rect class="bar3" x="420" y="264" width="18" height="6"/>
+<rect class="bar2" x="446" y="264" width="140" height="6"/><rect class="cfg" x="446" y="273" width="140" height="2"/>
+<rect class="bar3" x="420" y="282" width="24" height="6"/>
+<rect class="bar2" x="452" y="282" width="134" height="6"/><rect class="cfg" x="452" y="291" width="134" height="2"/>
+
+<!-- 밴드 2 -->
+<rect class="chip" x="32" y="326" width="44" height="15" rx="7.5"/>
+<text class="cap" x="54" y="337" text-anchor="middle" font-size="8.5px">밴드 2</text>
+<rect class="bar"  x="84" y="328" width="66" height="11"/>
+<rect class="bar3" x="158" y="331" width="58" height="6"/>
+<rect x="516" y="324" width="44" height="17" rx="4" fill="#e7edeb" stroke="#cfd5d9"/>
+<rect class="bar2" x="524" y="330" width="28" height="5"/>
+<rect x="564" y="324" width="44" height="17" rx="4" fill="#fff" stroke="#cfd5d9" stroke-dasharray="3 2"/>
+<rect class="bar2" x="572" y="330" width="28" height="5"/>
+
+<rect class="box" x="32" y="350" width="576" height="222" rx="6"/>
+
+<circle cx="61" cy="372" r="4" fill="#c3c9cd"/>
+<rect class="bar" x="72" y="367" width="58" height="10"/><rect class="cfg" x="72" y="380" width="58" height="2.5"/>
+<rect class="chip" x="212" y="367" width="16" height="10" rx="5"/>
+<rect class="boxq" x="56" y="390" width="176" height="48" rx="4"/>
+<rect class="bar3" x="66" y="398" width="30" height="6"/>
+<rect class="bar" x="66" y="410" width="118" height="10"/><rect class="dat" x="66" y="423" width="118" height="2.5"/>
+<rect class="bar3" x="66" y="430" width="24" height="7"/><rect class="bar3" x="96" y="430" width="24" height="7"/>
+
+<circle cx="249" cy="372" r="4" fill="#c3c9cd"/>
+<rect class="bar" x="260" y="367" width="58" height="10"/><rect class="cfg" x="260" y="380" width="58" height="2.5"/>
+<rect class="chip" x="400" y="367" width="16" height="10" rx="5"/>
+<rect class="boxq" x="244" y="390" width="176" height="48" rx="4"/>
+<rect class="bar3" x="254" y="398" width="30" height="6"/>
+<rect class="bar" x="254" y="410" width="104" height="10"/><rect class="dat" x="254" y="423" width="104" height="2.5"/>
+<rect class="bar3" x="254" y="430" width="24" height="7"/><rect class="bar3" x="284" y="430" width="24" height="7"/>
+
+<circle cx="437" cy="372" r="4" fill="#c3c9cd"/>
+<rect class="bar" x="448" y="367" width="58" height="10"/><rect class="cfg" x="448" y="380" width="58" height="2.5"/>
+<rect class="chip" x="588" y="367" width="16" height="10" rx="5"/>
+<rect class="boxq" x="432" y="390" width="176" height="48" rx="4"/>
+<rect class="bar3" x="442" y="398" width="30" height="6"/>
+<rect class="bar" x="442" y="410" width="112" height="10"/><rect class="dat" x="442" y="423" width="112" height="2.5"/>
+<rect class="bar3" x="442" y="430" width="24" height="7"/><rect class="bar3" x="472" y="430" width="24" height="7"/>
+
+<rect x="56" y="452" width="552" height="66" rx="4" fill="#fff" stroke="#cfd5d9" stroke-dasharray="4 3"/>
+<rect class="bar3" x="66" y="459" width="40" height="6"/>
+<rect class="bar3" x="66" y="474" width="52" height="6"/>
+<rect x="130" y="472" width="330" height="10" rx="2" fill="#e6edea"/>
+<rect x="130" y="472" width="206" height="10" rx="2" fill="#c7d5ce"/><rect class="dat" x="130" y="484" width="206" height="2.5"/>
+<rect class="bar3" x="66" y="490" width="46" height="6"/>
+<rect x="196" y="488" width="382" height="10" rx="2" fill="#e6edea"/>
+<rect x="196" y="488" width="248" height="10" rx="2" fill="#c7d5ce"/><rect class="dat" x="196" y="500" width="248" height="2.5"/>
+<rect class="bar3" x="66" y="506" width="58" height="6"/>
+<rect x="130" y="504" width="286" height="9" rx="2" fill="#e6edea"/>
+<rect x="130" y="504" width="96" height="9" rx="2" fill="#c7d5ce"/><rect class="dat" x="130" y="515" width="96" height="2"/>
+<line x1="392" y1="464" x2="392" y2="516" stroke="#b0b8bd" stroke-dasharray="3 3"/>
+
+<line x1="56" y1="530" x2="608" y2="530" stroke="#e3e7e9" stroke-dasharray="4 3"/>
+<rect class="bar3" x="56" y="537" width="72" height="6"/>
+<rect class="boxq" x="56" y="548" width="552" height="18" rx="3"/>
+<rect x="64" y="553" width="8" height="8" rx="1" fill="none" stroke="#7fb8ac"/>
+<rect class="bar" x="78" y="553" width="80" height="8"/><rect class="cfg" x="78" y="563" width="80" height="2"/>
+<rect x="516" y="552" width="84" height="10" rx="3" fill="#f7f2ea" stroke="#e0c9a8"/>
+<rect class="eng" x="516" y="564" width="84" height="2"/>
+
+<!-- 밴드 3 -->
+<rect class="chip" x="32" y="588" width="44" height="15" rx="7.5"/>
+<text class="cap" x="54" y="599" text-anchor="middle" font-size="8.5px">밴드 3</text>
+<rect class="bar"  x="84" y="590" width="66" height="11"/>
+<rect class="bar3" x="158" y="593" width="58" height="6"/>
+<rect class="box" x="32" y="610" width="576" height="96" rx="6"/>
+
+<circle cx="60" cy="626" r="3.5" fill="#c3c9cd"/>
+<rect class="bar" x="70" y="621" width="66" height="9"/><rect class="cfg" x="70" y="633" width="66" height="2.5"/>
+<rect x="56" y="640" width="36" height="13" rx="3" fill="#f7f2ea" stroke="#e0c9a8"/><rect class="eng" x="56" y="655" width="36" height="2.5"/>
+<rect class="bar2" x="56" y="664" width="118" height="5"/><rect class="cfg" x="56" y="671" width="118" height="2"/>
+<rect class="bar2" x="56" y="677" width="96" height="5"/>
+<rect class="boxq" x="56" y="688" width="122" height="12" rx="3"/>
+
+<circle cx="198" cy="626" r="3.5" fill="#c3c9cd"/>
+<rect class="bar" x="208" y="621" width="66" height="9"/><rect class="cfg" x="208" y="633" width="66" height="2.5"/>
+<rect x="194" y="640" width="36" height="13" rx="3" fill="#eef6f1" stroke="#b6d8c4"/><rect class="eng" x="194" y="655" width="36" height="2.5"/>
+<rect class="bar2" x="194" y="664" width="118" height="5"/><rect class="cfg" x="194" y="671" width="118" height="2"/>
+<rect class="bar2" x="194" y="677" width="96" height="5"/>
+<rect class="boxq" x="194" y="688" width="122" height="12" rx="3"/>
+
+<circle cx="336" cy="626" r="3.5" fill="#c3c9cd"/>
+<rect class="bar" x="346" y="621" width="66" height="9"/><rect class="cfg" x="346" y="633" width="66" height="2.5"/>
+<rect x="332" y="640" width="36" height="13" rx="3" fill="#fbeeec" stroke="#e6b3aa"/><rect class="eng" x="332" y="655" width="36" height="2.5"/>
+<rect class="bar2" x="332" y="664" width="118" height="5"/><rect class="cfg" x="332" y="671" width="118" height="2"/>
+<rect class="bar2" x="332" y="677" width="96" height="5"/>
+<rect class="boxq" x="332" y="688" width="122" height="12" rx="3"/>
+
+<circle cx="474" cy="626" r="3.5" fill="#c3c9cd"/>
+<rect class="bar" x="484" y="621" width="66" height="9"/><rect class="cfg" x="484" y="633" width="66" height="2.5"/>
+<rect x="470" y="640" width="36" height="13" rx="3" fill="#f1f3f4" stroke="#d3d9dc"/><rect class="eng" x="470" y="655" width="36" height="2.5"/>
+<rect class="bar2" x="470" y="664" width="118" height="5"/><rect class="cfg" x="470" y="671" width="118" height="2"/>
+<rect class="bar2" x="470" y="677" width="96" height="5"/>
+<rect class="boxq" x="470" y="688" width="122" height="12" rx="3"/>
+
+<rect class="box" x="32" y="714" width="576" height="26" rx="5"/>
+<rect class="bar" x="44" y="722" width="90" height="8"/><rect class="cfg" x="44" y="732" width="90" height="2"/>
+<rect class="bar" x="142" y="722" width="26" height="8"/><rect class="eng" x="142" y="732" width="26" height="2"/>
+<rect class="bar3" x="520" y="723" width="76" height="7"/>
+
+<rect x="32" y="746" width="576" height="14" rx="3" fill="#f0f2f3"/>
+<rect class="bar2" x="42" y="750" width="430" height="6"/><rect class="cfg" x="42" y="758" width="430" height="2"/>
+
+<!-- 번호 핀 8개 -->
+<g class="pinlink" data-pin="1"><g class="pin pcfg"><circle cx="184" cy="213" r="9"/></g><text class="pn" x="184" y="217" fill="#2f6ad0">1</text></g>
+<g class="pinlink" data-pin="2"><g class="pin peng"><circle cx="184" cy="243" r="9"/></g><text class="pn" x="184" y="247" fill="#d9761a">2</text></g>
+<g class="pinlink" data-pin="3"><g class="pin peng"><circle cx="140" cy="192" r="9"/></g><text class="pn" x="140" y="196" fill="#d9761a">3</text></g>
+<g class="pinlink" data-pin="4"><g class="pin pcfg"><circle cx="42"  cy="372" r="9"/></g><text class="pn" x="42"  y="376" fill="#2f6ad0">4</text></g>
+<g class="pinlink" data-pin="5"><g class="pin pdat"><circle cx="42"  cy="414" r="9"/></g><text class="pn" x="42"  y="418" fill="#12905d">5</text></g>
+<g class="pinlink" data-pin="6"><g class="pin pdat"><circle cx="42"  cy="486" r="9"/></g><text class="pn" x="42"  y="490" fill="#12905d">6</text></g>
+<g class="pinlink" data-pin="7"><g class="pin peng"><circle cx="42"  cy="646" r="9"/></g><text class="pn" x="42"  y="650" fill="#d9761a">7</text></g>
+<g class="pinlink" data-pin="8"><g class="pin pcfg"><circle cx="584" cy="753" r="9"/></g><text class="pn" x="584" y="757" fill="#2f6ad0">8</text></g>
+
+<!-- ── 오른쪽 · 읽는 법 ────────────────────────────────────── -->
+<text class="h2" x="636" y="86">색 = 그 글자가 어디서 왔나</text>
+
+<rect x="636" y="100" width="14" height="14" rx="3" fill="#2f6ad0"/>
+<text class="tb" x="660" y="107">파랑 · config에 적는다</text>
+<text class="ts" x="660" y="123">한 번 적으면 계속 재사용된다</text>
+
+<rect x="636" y="134" width="14" height="14" rx="3" fill="#12905d"/>
+<text class="tb" x="660" y="141">초록 · data에 적는다</text>
+<text class="ts" x="660" y="157">이번 회차의 사실만 매번 적는다</text>
+
+<rect x="636" y="168" width="14" height="14" rx="3" fill="#d9761a"/>
+<text class="tb" x="660" y="175">주황 · 엔진이 계산한다</text>
+<text class="ts" x="660" y="191">사람은 적을 수 없다. 적으면 거부된다</text>
+
+<rect x="636" y="204" width="344" height="46" rx="5" fill="#fbf6ed" stroke="#e6d8bd"/>
+<text class="tn" x="648" y="223">이 세 색은 상태가 아니라 &#39;출처&#39;다.</text>
+<text class="tn" x="648" y="239">보드 화면의 빨강·주황(위험·주의)과는 무관하다.</text>
+
+<text class="h2" x="636" y="280">번호가 가리키는 자리</text>
+<g class="pinlink" data-pin="1"><g class="pin pcfg"><circle cx="646" cy="300" r="9"/></g><text class="pn" x="646" y="304" fill="#2f6ad0">1</text>
+<text class="t" x="666" y="304">카드 제목과 뜻·걸리면</text></g>
+<g class="pinlink" data-pin="2"><g class="pin peng"><circle cx="646" cy="330" r="9"/></g><text class="pn" x="646" y="334" fill="#d9761a">2</text>
+<text class="t" x="666" y="334">카드 안 굵은 숫자 문장</text></g>
+<g class="pinlink" data-pin="3"><g class="pin peng"><circle cx="646" cy="360" r="9"/></g><text class="pn" x="646" y="364" fill="#d9761a">3</text>
+<text class="t" x="666" y="364">판정 램프와 결정 필요 건수</text></g>
+<g class="pinlink" data-pin="4"><g class="pin pcfg"><circle cx="646" cy="390" r="9"/></g><text class="pn" x="646" y="394" fill="#2f6ad0">4</text>
+<text class="t" x="666" y="394">칸반 열 이름</text></g>
+<g class="pinlink" data-pin="5"><g class="pin pdat"><circle cx="646" cy="420" r="9"/></g><text class="pn" x="646" y="424" fill="#12905d">5</text>
+<text class="t" x="666" y="424">작업 카드의 id·제목·팀</text></g>
+<g class="pinlink" data-pin="6"><g class="pin pdat"><circle cx="646" cy="450" r="9"/></g><text class="pn" x="646" y="454" fill="#12905d">6</text>
+<text class="t" x="666" y="454">간트 막대의 날짜와 진척</text></g>
+<g class="pinlink" data-pin="7"><g class="pin peng"><circle cx="646" cy="480" r="9"/></g><text class="pn" x="646" y="484" fill="#d9761a">7</text>
+<text class="t" x="666" y="484">자동 검사의 상태 배지</text></g>
+<g class="pinlink" data-pin="8"><g class="pin pcfg"><circle cx="646" cy="510" r="9"/></g><text class="pn" x="646" y="514" fill="#2f6ad0">8</text>
+<text class="t" x="666" y="514">맨 아래 한계 고백</text></g>
+
+<rect x="636" y="536" width="344" height="102" rx="5" fill="#fdf4e9" stroke="#ecc99e"/>
+<rect x="636" y="536" width="4" height="102" fill="#d9761a"/>
+<text class="ts" x="654" y="559" fill="#8a6a2f">7번 배지를 읽는 법</text>
+<text x="654" y="582" font-size="13px" font-weight="700" fill="#6b4a12">초록은 돌려 봤고 괜찮았다,</text>
+<text x="654" y="602" font-size="13px" font-weight="700" fill="#6b4a12">회색은 아직 모른다</text>
+<text class="ts" x="654" y="624" fill="#8a6a2f">여기의 초록·회색은 배지 색이다. 왼쪽 출처 색과 다르다.</text>
+
+<text class="tn" x="636" y="670">회색 막대는 실제 글자가 들어가는 자리다.</text>
+<text class="tn" x="636" y="688">그 글자는 보드 화면에 이미 인쇄돼 있으므로,</text>
+<text class="tn" x="636" y="706">이 그림은 글자 대신 출처만 말한다.</text>
+<text class="cap" x="636" y="738">REFERENCE/BOARD-SCHEMA.MD</text>
+</svg></div>
+    <p class="swipe">그림은 가로로 넘겨 볼 수 있습니다.</p>
+  </figure>
+  <p class="note" style="margin-top:var(--sp-3)">범례도, 밴드 이름도, 카드의 뜻과 걸리면도 보드 화면이 스스로 인쇄한다. 그래서 이 안내서에 옮겨 적지 않는다.</p>
+</section>
+
+<section>
+  <h2><i>03</i> 5분 안에 띄워 보기</h2>
+  <p>준비물이 없다. 엔진은 파이썬 표준 라이브러리만 쓰고, 인자를 생략하면 번들 예시로 데모를 그린다.</p>
+  <div class="cb">
+    <div class="cb-h"><span class="cb-t">bash</span><button class="copy">Copy</button></div>
+<pre>S=.claude/skills/integration-board/assets
+python3 $S/integration_board_engine.py --out board.html
+open board.html    # 브라우저로 그냥 열어도 된다</pre>
+  </div>
+  <p>아래처럼 나오면 성공이다.</p>
+  <div class="cb out">
+    <div class="cb-h"><span class="cb-t">성공 출력</span></div>
+<pre>통합 현황판을 만들었습니다 → /home/me/proj/board.html
+  판정 위험 · 결정 필요 2건 · 작업 12건(일정 미정 2) · 공용 자산 2 · 자동 검사 6(통과 3 · 미보고 1) · 76,073 bytes</pre>
+  </div>
+</section>
+
+<section>
+  <h2><i>04</i> 우리 프로젝트로 바꾸기 — 이 14줄에서 이름만 바꾼다</h2>
+  <p>아래 두 파일을 만들어 3절 명령에 <code>--config</code>와 <code>--data</code>로 물리면 우리 보드가 나온다.
+    따옴표 안의 이름과 설명만 우리 말로 바꾸면 그대로 돈다. 지켜볼 것을 늘리고 싶으면 마지막 절의 스키마 정본으로 간다.</p>
+  <div class="cb">
+    <div class="cb-h"><span class="cb-t">.integration/board.config.json &nbsp;— 우리가 무엇을 지켜볼지. 분기에 한 번 바뀐다.</span><button class="copy">Copy</button></div>
+<pre>{ "board":    { "title": "우리 팀 통합 현황판" },
+  "lanes":    [ { "key": "cohesion", "label": "조화" } ],
+  "areas":    [ { "key": "app", "label": "앱" } ],
+  "statuses": [ { "key": "doing", "label": "진행 중", "tone": "blue" },
+                { "key": "done",  "label": "배포완료", "tone": "green" } ],
+  "assets":   [ { "key": "api", "label": "API 규격",
+                  "plain": "여러 화면이 함께 의존하는 요청·응답의 모양",
+                  "why":   "두 팀이 각자 바꾸면 남의 화면이 조용히 깨진다" } ],
+  "cards":    [ { "key": "c1", "lane": "cohesion",
+                  "title": "API 규격",
+                  "plain": "여러 화면이 함께 의존하는 요청·응답의 모양",
+                  "why":   "두 팀이 각자 바꾸면 남의 화면이 조용히 깨진다",
+                  "metric": { "kind": "asset", "asset": "api" },
+                  "decide": true } ] }</pre>
+  </div>
+  <div class="cb">
+    <div class="cb-h"><span class="cb-t">.integration/board.json &nbsp;— 이번 회차의 사실만. 실행할 때마다 바뀐다.</span><button class="copy">Copy</button></div>
+<pre>{ "today": "2026-07-28",
+  "works": [
+    { "id": "W-1", "title": "결제 응답 구조 분리", "area": "app", "team": "A팀", "status": "doing",
+      "block": "conflict", "touches": "api", "planStart": "2026-07-20", "planEnd": "2026-08-07" },
+    { "id": "W-2", "title": "주문 목록 화면", "area": "app", "team": "B팀", "status": "done",
+      "touches": "api", "planStart": "2026-07-10", "planEnd": "2026-07-24", "progress": 100 } ] }</pre>
+  </div>
+</section>
+
+<section>
+  <h2><i>05</i> 막히면 — 엔진이 무엇이 틀렸는지 직접 알려 준다</h2>
+  <p>검증에 걸리면 엔진은 아무 것도 만들지 않고, 어디가 어떻게 틀렸는지와 대신 쓸 수 있는 값을 모아서 알려 준다. 오류 사례를 미리 외울 필요가 없다.</p>
+  <div class="cb out">
+    <div class="cb-h"><span class="cb-t">검증 실패 출력</span></div>
+<pre>통합 현황판 엔진 — 검증 실패 1건. 아무 것도 렌더하지 않았습니다.
+  1. data.works[W-1].touches: 공용 자산 'apis'를 찾을 수 없습니다
+       └ 선언된 값: api
+
+스키마 정본: reference/board-schema.md</pre>
+  </div>
+</section>
+
+<section class="more">
+  <h2><i>06</i> 더 깊이 볼 곳</h2>
+  <dl>
+    <dt>항목 하나하나의 규격, 지표 여덟 종, 검증이 막는 것</dt>
+    <dd><a href="reference/board-schema.md">reference/board-schema.md</a></dd>
+    <dt>다 채워진 실제 예시 두 벌(웹 서비스 팀 · 하드웨어팀)</dt>
+    <dd><a href="assets/">assets/</a>의 <code>*example*.json</code> 네 개</dd>
+    <dt>클로드가 이 스킬을 어떤 절차로 도는가</dt>
+    <dd><a href="SKILL.md">SKILL.md</a></dd>
+  </dl>
+</section>
+
+</div>
+<script>
+/* 테마 — 보는 사람의 설정을 따르고, 버튼으로 뒤집는다. */
+(function(){
+  var root=document.documentElement, btn=document.getElementById('theme');
+  function set(dark){
+    if(dark){root.setAttribute('data-theme','gc');}else{root.removeAttribute('data-theme');}
+    btn.textContent=dark?'Light':'Dark'; btn.setAttribute('aria-pressed',dark?'true':'false');
+  }
+  var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');
+  set(!!(m&&m.matches));
+  btn.addEventListener('click',function(){set(!root.hasAttribute('data-theme'));});
+})();
+
+/* 복사 — 클립보드 API가 막힌 file:// 환경도 있어 실행명령 대체 경로를 둔다. */
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var text=btn.closest('.cb').querySelector('pre').textContent;
+    function done(ok){
+      btn.textContent=ok?'Copied':'Press Ctrl+C';
+      setTimeout(function(){btn.textContent='Copy';},1600);
+    }
+    function fallback(){
+      var ta=document.createElement('textarea');
+      ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      var ok=false; try{ok=document.execCommand('copy');}catch(e){}
+      document.body.removeChild(ta); done(ok);
+    }
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){done(true);},fallback);
+    }else{fallback();}
+  });
+});
+
+/* 해부도의 번호 핀 ↔ 오른쪽 설명 연결. 정적으로도 다 읽히고, 이건 찾기를 돕는 보조다. */
+(function(){
+  var svg=document.getElementById('anatomy');
+  if(!svg) return;
+  var groups=[].slice.call(svg.querySelectorAll('.pinlink'));
+  function light(n){
+    svg.classList.toggle('pinning',!!n);
+    groups.forEach(function(g){g.classList.toggle('on',!!n&&g.getAttribute('data-pin')===n);});
+  }
+  groups.forEach(function(g){
+    g.addEventListener('mouseenter',function(){light(g.getAttribute('data-pin'));});
+    g.addEventListener('mouseleave',function(){light(null);});
+    g.addEventListener('click',function(e){
+      e.preventDefault();
+      var on=g.classList.contains('on');
+      light(on?null:g.getAttribute('data-pin'));
+    });
+  });
+  svg.addEventListener('mouseleave',function(){light(null);});
+})();
+</script>
+</body>
+</html>

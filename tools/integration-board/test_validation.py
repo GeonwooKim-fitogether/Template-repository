@@ -19,7 +19,10 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ASSETS = os.path.join(os.path.dirname(HERE), "assets")
+# 이 도구는 창고 전용이라 스킬 폴더 밖(tools/integration-board/)에 있다.
+ROOT = os.path.dirname(os.path.dirname(HERE))
+SKILL = os.path.join(ROOT, ".claude", "skills", "integration-board")
+ASSETS = os.path.join(SKILL, "assets")
 ENGINE = os.path.join(ASSETS, "integration_board_engine.py")
 BASE_CFG = json.load(open(os.path.join(ASSETS, "board.config.example.json"), encoding="utf-8"))
 BASE_DATA = json.load(open(os.path.join(ASSETS, "board.example.json"), encoding="utf-8"))

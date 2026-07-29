@@ -45,7 +45,7 @@ FITogether 팀의 **Claude Code 공용 자산 창고 + 새 프로젝트 템플�
 | `grilling` | 계획·설계를 한 번에 하나씩 질문하며 물고 늘어져 공유된 이해에 도달 (grill-me의 실제 엔진) |
 | `hardware-map` | 회로도(스키매틱) PDF를 기능 블록·버스 관계도 + 블록 상세 + 회로도·전 부품 역할표를 담은 인터랙티브 HTML로 생성 (DRBFM 회로 리뷰·비전문가 이해용) |
 | `humanizer` | AI 문체를 제거하고 자연스러운 사람 말투로 재작성 |
-| `integration-board` | 여러 팀의 일이 아직 하나의 제품으로 맞물리는지 한 장으로 보여 주는 통합 현황판 HTML 생성. 고정 엔진 + 프로젝트 config + 회차 data 구조라 **판이 매번 같고**, 판정·건수는 사람이 적는 게 아니라 엔진이 계산한다 → [사용 안내서](.claude/skills/integration-board/USER-GUIDE.md) |
+| `integration-board` | 여러 팀의 일이 아직 하나의 제품으로 맞물리는지 한 장으로 보여 주는 통합 현황판 HTML 생성. 고정 엔진 + 프로젝트 config + 회차 data 구조라 **판이 매번 같고**, 판정·건수는 사람이 적는 게 아니라 엔진이 계산한다 → [사용 안내서](.claude/skills/integration-board/USER-GUIDE.html) |
 | `ponytail` | 과잉 코드 억제 — "이미 있나 / 한 줄로 되나" 사다리로 가장 게으른(최소) 구현을 강제 |
 | `qa-swarm` | 이해관계자 페르소나(L1·L2)를 subagent로 띄워 앱을 직접 써보게 하며 놓친 엣지·막힘·다자 마찰을 발견하는 QA 하네스 |
 | `remotion` | React 기반 영상 제작의 타이밍·싱크 오류 교정 |

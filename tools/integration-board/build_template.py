@@ -36,7 +36,9 @@ import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-ASSETS = HERE.parent / "assets"
+# 이 도구는 창고 전용이라 스킬 폴더 밖(tools/integration-board/)에 있다.
+SKILL = HERE.parents[1] / ".claude" / "skills" / "integration-board"
+ASSETS = SKILL / "assets"
 TEMPLATE = ASSETS / "board_template.html"
 MARKER = "/*__BOARD_DATA__*/null"
 LANG_MARKER = '<html lang="ko">'

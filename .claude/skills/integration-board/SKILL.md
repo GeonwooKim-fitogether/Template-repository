@@ -104,7 +104,7 @@ python3 <skill>/assets/integration_board_engine.py \
 3. 간트에서 영역 행을 누르면 자식 작업이 펼쳐지는지.
 4. 관심사 열에 "그 외 n건 펼치기"가 있으면 눌러 접힌 카드가 실제로 열리는지.
 
-엔진이나 스키마를 고쳤다면 `python3 <skill>/tools/test_validation.py`도 함께 돌린다(잘못된 입력이 막히고, 맞는 입력·예전 형식 data가 그대로 통과하는지 확인한다).
+엔진이나 스키마를 고쳤다면 회귀 시험도 함께 돌린다(창고 저장소의 `tools/integration-board/test_validation.py`. 이 도구들은 프로젝트로 동기화되지 않고 창고에만 있다)(잘못된 입력이 막히고, 맞는 입력·예전 형식 data가 그대로 통과하는지 확인한다).
 
 ### 5단계 — 게시한다
 
@@ -130,5 +130,5 @@ Artifact로 올리고 링크를 준다. **갱신할 때는 같은 파일 경로�
 - **스키마 정본**: [`reference/board-schema.md`](reference/board-schema.md) — config·data의 모든 항목, 지표 8종, 엔진이 계산하는 것, **config로 바꿀 수 없는 것**, 검증이 막는 것.
 - **번들 예시 2종**: `assets/board.config.web-example.json` + `assets/board.web-example.json`(사내 웹 서비스 팀) · `assets/board.config.example.json` + `assets/board.example.json`(하드웨어팀 시스템). 도메인만 다르고 스키마는 같다.
 - **템플릿**: `assets/board_template.html` — 시각·상호작용의 확정본. 주입 지점은 `/*__BOARD_DATA__*/null` 한 곳뿐이며, CSS/JS를 손으로 고치지 않는다.
-- **도구**: `tools/test_validation.py`는 잘못된 입력이 막히고 맞는 입력이 통과하는지 확인하는 회귀 시험이다 — **엔진이나 스키마를 고쳤으면 반드시 돌린다.** `tools/build_template.py`는 **디자이너가 판을 새로 그린 시안을 가져왔을 때만** 쓴다(시안의 CSS·마크업을 손으로 옮겨 적지 않고 템플릿을 다시 파생시킨다. 기본은 미리보기 파일로 쓰고, 정본을 덮어쓰려면 `--force`가 필요하다).
+- **도구**(창고 저장소의 `tools/integration-board/`에만 있다 — 프로젝트로 동기화되지 않는다): `test_validation.py`는 잘못된 입력이 막히고 맞는 입력이 통과하는지 확인하는 회귀 시험이다 — **엔진이나 스키마를 고쳤으면 반드시 돌린다.** `build_template.py`는 **디자이너가 판을 새로 그린 시안을 가져왔을 때만** 쓴다(시안의 CSS·마크업을 손으로 옮겨 적지 않고 템플릿을 다시 파생시킨다. 기본은 미리보기 파일로 쓰고, 정본을 덮어쓰려면 `--force`가 필요하다).
 - `/sysreport`(시스템층 통합 현황판 + 결정 큐)의 정식 종합은 이 스킬로 렌더한다.
