@@ -1,6 +1,6 @@
 export const meta = {
   name: 'system-sweep',
-  description: '시스템층 수평 스윕 — 파트(change·home·quality·specification·projects…)를 가로지르는 5개 수평 축을 시스템 레벨에서 감사한다. 파트 팀은 각자 자기 파트만 보므로 축을 가로지르는 균열(척추 위반·스키마↔문서 드리프트·디자인 이탈·파트 흐름 단절·STATUS 자기모순)을 놓친다. 이 스윕은 기존 kimlead-verified 엔진을 그대로 재사용해 렌즈별 팬아웃 → 발견마다 적대 검증 → 완결성 비평을 돌려, 사람에게는 확정된 균열과 갈림길만 올린다.',
+  description: '시스템층 수평 스윕 — 파트(change·home·quality·specification·projects…)를 가로지르는 6개 수평 축을 시스템 레벨에서 감사한다. 파트 팀은 각자 자기 파트만 보므로 축을 가로지르는 균열(척추 위반·스키마↔문서 드리프트·디자인 이탈·파트 흐름 단절·STATUS 자기모순·배선 누락)을 놓친다. 이 스윕은 기존 kimlead-verified 엔진을 그대로 재사용해 렌즈별 팬아웃 → 발견마다 적대 검증 → 완결성 비평을 돌려, 사람에게는 확정된 균열과 갈림길만 올린다.',
   whenToUse: '분기 정기 감사(doc-governance.md §3), 또는 여러 파트의 PR이 쌓인 뒤 수평 축의 정합이 깨졌는지 시스템 레벨에서 확인하고 싶을 때. args로 repo·refuters·maxFindingsPerLens·lensKeys·enginePath를 조정할 수 있다. 토큰을 크게 쓰므로(에이전트 수십 개) 판돈이 클 때만 돌린다.',
   phases: [
     { title: '팬아웃', detail: '수평 렌즈별 독립 검토자가 균열을 수집한다 (kimlead-verified가 수행)' },
@@ -14,15 +14,15 @@ export const meta = {
 // args.enginePath         재사용할 kimlead-verified 엔진의 절대경로. 기본은 이 저장소 것.
 // args.refuters           발견 하나당 붙는 회의론자 수. 기본 3 (다수결 폐기).
 // args.maxFindingsPerLens 렌즈당 최대 발견 수. 기본 4.
-// args.lensKeys           돌릴 렌즈 키 배열(부분 감사용). 기본은 5개 전부.
-//                         키: 'spine' | 'schema-doc' | 'design' | 'cross-flow' | 'status'
+// args.lensKeys           돌릴 렌즈 키 배열(부분 감사용). 기본은 6개 전부.
+//                         키: 'spine' | 'schema-doc' | 'design' | 'cross-flow' | 'status' | 'wiring'
 const input = (typeof args === 'string' && args) ? JSON.parse(args) : (args || {})
 const REPO = input.repo || '/home/user/Hardware-Team-System'
 const ENGINE = input.enginePath || '/home/user/Hardware-Team-System/.claude/workflows/kimlead-verified.js'
 const refuters = input.refuters || 3
 const maxFindingsPerLens = input.maxFindingsPerLens || 4
 
-// 5개 수평 렌즈. 각 렌즈 문자열은 "무엇을 보는가 + 어디를 여는가"를 자족적으로 담는다.
+// 6개 수평 렌즈. 각 렌즈 문자열은 "무엇을 보는가 + 어디를 여는가"를 자족적으로 담는다.
 // kimlead-verified는 렌즈 하나당 독립 검토자 1명을 붙이고, 검토자는 여기 적힌
 // 파일을 Read로 직접 열어(필요하면 Grep/Glob/Bash로 탐색) 확인한다.
 const LENS = {
@@ -61,9 +61,29 @@ const LENS = {
     '"pre-v3 = 코어 밖" 류의 낡은 서술이 v3 구현과 충돌하는 경우, "(0027)" 처럼 참조한 마이그레이션 번호가 이미 다른 파일에 쓰인 경우, ' +
     '"라이브 미적용" 표기와 supabase/APPLY_PENDING.sql 내용의 불일치. ' +
     'STATUS 의 특정 줄을 실제 파일과 대조해 모순을 구체적으로 보고. 실제 코드를 열어 확인한 것만 적는다.',
+  wiring:
+    '배선 누락과 죽은 스위치 — 만들어져 있지만 사용자에게 도달하지 않는 것을 찾아라. ' +
+    '이 렌즈가 따로 있는 이유는, 테스트와 빌드가 이런 결함을 원리적으로 못 잡기 때문이다. ' +
+    '테스트는 대상을 직접 호출하므로 "아무도 그것을 부르지 않는" 상태에서도 통과한다. ' +
+    '판정 기준은 .claude/rules/communication.md 규칙 7-2(노출 증명)이다. 아래 네 가지를 찾는다.\n' +
+    '(a) 고아 코드 — app/src/lib/** 와 app/src/components/** 에서 export 된 함수·컴포넌트 중, ' +
+    '자기 파일과 테스트 파일(*.test.ts, e2e) 밖에서 import·호출하는 곳이 하나도 없는 것. Grep 으로 심볼 이름을 저장소 전체에서 찾아 확인한다.\n' +
+    '(b) 죽은 스위치 — 이것이 가장 중요하고 실제 사고가 바로 이 형태였다. 어떤 기능이 설정값·모드 문자열을 읽는 조건 ' +
+    '뒤에서만 동작하는데(예: `d.rollup?.scope === "explode"`, `if (flags.x)`, 특정 enum 분기), ' +
+    '그 조건을 만족시키는 값을 **데이터·시드·마이그레이션·설정 어디에서도 선언하지 않는** 경우다. ' +
+    '이때 호출부는 멀쩡히 존재하므로 (a) 검사를 통과하지만, 조건이 언제나 거짓이라 기능은 한 번도 실행되지 않는다. ' +
+    '찾는 방법: 코드에서 문자열 리터럴과 비교하는 조건을 모아, 그 리터럴을 supabase/migrations/** 와 시드·픽스처·설정에서 검색한다. ' +
+    '**주석 줄과 구현 파일·테스트 파일은 제외한다** — 거기에만 있는 값은 선언된 것이 아니다.\n' +
+    '(c) 진입점 없는 화면 — app/src/app/** 의 페이지·라우트 중, 네비게이션·사이드바·다른 화면의 링크에서 ' +
+    '클릭으로 도달할 수 없는 것. 주소를 직접 입력해야만 열리는 화면은 사용자에게 존재하지 않는 화면이다.\n' +
+    '(d) 미적용 환경 변경 — supabase/migrations/** 에 있으나 실환경에 적용되지 않은 마이그레이션이 ' +
+    'supabase/APPLY_PENDING.sql 의 대기 목록에도 실려 있지 않아, 적용을 준비하는 사람이 놓치게 되는 경우.\n' +
+    '각 발견에는 "무엇이 만들어져 있고, 왜 도달하지 못하며, 무엇을 선언·연결하면 살아나는가"를 파일·줄과 함께 적는다. ' +
+    '의도적으로 후속 작업에 미룬다고 STATUS.md 나 코드 주석에 명시돼 있으면 그 사실을 함께 적어라 — ' +
+    '문제는 미배선 자체가 아니라 아무도 모르는 미배선이다.',
 }
 
-const allKeys = ['spine', 'schema-doc', 'design', 'cross-flow', 'status']
+const allKeys = ['spine', 'schema-doc', 'design', 'cross-flow', 'status', 'wiring']
 const keys = (input.lensKeys && input.lensKeys.length) ? input.lensKeys.filter(k => LENS[k]) : allKeys
 const lenses = keys.map(k => LENS[k])
 
@@ -75,8 +95,8 @@ log(`엔진: kimlead-verified 재사용 (${ENGINE})`)
 // 한 단계 중첩만 허용되므로 이 워크플로가 부모, kimlead-verified 가 자식이다.
 const result = await workflow({ scriptPath: ENGINE }, {
   goal:
-    '이 저장소가 파트(change·home·quality·specification·projects…)를 가로지르는 5개 수평 축 — ' +
-    '척추 규칙, 스키마↔문서 정합, 디자인 정합, 파트 간 흐름, STATUS 정합 — 을 지키는지, ' +
+    '이 저장소가 파트(change·home·quality·specification·projects…)를 가로지르는 6개 수평 축 — ' +
+    '척추 규칙, 스키마↔문서 정합, 디자인 정합, 파트 간 흐름, STATUS 정합, 배선·노출 — 을 지키는지, ' +
     '파트 팀 혼자서는 볼 수 없는 시스템 레벨의 균열을 찾아 확정한다.',
   target:
     `${REPO} (저장소 루트). 각 렌즈에 적힌 파일을 Read 로 직접 열고, 필요하면 Grep/Glob/Bash 로 탐색해 확인한다.`,
