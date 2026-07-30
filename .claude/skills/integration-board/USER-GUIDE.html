@@ -463,16 +463,18 @@ figure{margin:0}
     적으려 하면 거부된다. 사람은 사실만 적고 해석은 엔진이 한다.</p>
   <p>맨 위 칸에 놓을 카드는 <b>무엇을 세는가</b>로 고른다. 여덟 가지가 있고, 깔린 파일에는 그중 네 개가 이미 들어 있다.</p>
   <table>
-    <tr><th>이런 게 걱정이면</th><th>고를 것</th><th>엔진이 만드는 문장</th></tr>
-    <tr><td>여러 팀이 같은 것을 서로 다르게 고치나</td><td><code>asset</code></td><td>전체 5팀 중 <b>2팀</b>이 서로 다르게 고쳤다</td></tr>
-    <tr><td>지켜야 할 선이 실제로 지켜지나</td><td><code>check</code></td><td>위반 후보 <b>1건</b> · 검사 5개 중 <b>3개</b> 통과</td></tr>
-    <tr><td>어느 구획이 막혀 뒤가 밀리나</td><td><code>area_stalled</code></td><td>검토대기가 <b>12일</b>째 움직이지 않는다</td></tr>
-    <tr><td>어느 구획이 계획보다 늦나</td><td><code>area_delay</code></td><td><b>1건</b>이 계획보다 <b>7일</b> 늦다</td></tr>
-    <tr><td>언제 끝날지 모르는 일이 남아 있나</td><td><code>undated</code></td><td><b>1건</b>이 아직 시간 축에 올라가지 못했다</td></tr>
-    <tr><td>최근에 무엇이 실제로 나갔나</td><td><code>status_recent</code></td><td>최근 14일 배포완료 <b>1건</b></td></tr>
-    <tr><td>기획과 벌어진 곳이 쌓이나</td><td><code>drift</code></td><td>기획 이탈 <b>3건</b> 누적</td></tr>
-    <tr><td>위 어디에도 안 맞나</td><td><code>count</code></td><td>해당 작업 <b>2건</b> (조건을 우리가 정한다)</td></tr>
+    <tr><th>이런 게 걱정이면</th><th>고를 것</th><th>이 카드가 살아나려면 적어야 하는 것</th><th>엔진이 만드는 문장</th></tr>
+    <tr><td>여러 팀이 같은 것을 서로 다르게 고치나</td><td><code>asset</code></td><td>작업에 <code>touches</code>(건드리는 것)와 <code>block</code></td><td>전체 5팀 중 <b>2팀</b>이 서로 다르게 고쳤다</td></tr>
+    <tr><td>지켜야 할 선이 실제로 지켜지나</td><td><code>check</code></td><td><code>checkRuns</code>(검사가 돌았나)와 <code>violations</code>(걸린 것)</td><td>위반 후보 <b>1건</b> · 검사 5개 중 <b>3개</b> 통과</td></tr>
+    <tr><td>어느 구획이 막혀 뒤가 밀리나</td><td><code>area_stalled</code></td><td>작업에 <code>stalledDays</code>(며칠째 멈췄나)</td><td>검토대기가 <b>12일</b>째 움직이지 않는다</td></tr>
+    <tr><td>어느 구획이 계획보다 늦나</td><td><code>area_delay</code></td><td>작업에 <code>planEnd</code>와 <code>eta</code>(예상 종료일)</td><td><b>1건</b>이 계획보다 <b>7일</b> 늦다</td></tr>
+    <tr><td>언제 끝날지 모르는 일이 남아 있나</td><td><code>undated</code></td><td>계획 날짜를 <b>비워 두면</b> 된다</td><td><b>1건</b>이 아직 시간 축에 올라가지 못했다</td></tr>
+    <tr><td>최근에 무엇이 실제로 나갔나</td><td><code>status_recent</code></td><td>카드에 <code>status</code>(어느 상태를 셀지), 작업에 <code>completedAt</code></td><td>최근 7일 배포완료 <b>1건</b></td></tr>
+    <tr><td>기획과 벌어진 곳이 쌓이나</td><td><code>drift</code></td><td>작업에 <code>drift</code></td><td>기획 이탈 <b>3건</b> 누적</td></tr>
+    <tr><td>위 어디에도 안 맞나</td><td><code>count</code></td><td>카드에 <code>match</code>(셀 조건)</td><td>해당 작업 <b>2건</b> (조건을 우리가 정한다)</td></tr>
   </table>
+  <p class="note">가운데 열의 것을 안 적으면 카드가 <b>0으로 조용히 비어</b> 나온다. 틀렸다고 거부되지 않으므로,
+    만든 보드는 반드시 브라우저로 열어 <b>의도한 것이 실제로 담겼는지 눈으로</b> 확인한다.</p>
 </section>
 
 <section>
