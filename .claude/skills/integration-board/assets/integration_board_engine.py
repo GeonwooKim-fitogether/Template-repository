@@ -134,6 +134,9 @@ TEXT = {
     "vioBlock": "막힘", "vioWarn": "주의", "vioNoTarget": "특정 작업 지정 없음",
     "okNone": "이상 없음", "noData": "실행 결과 보고 없음",
     "traceChip": "연결 보기", "traceOff": "해제",
+    # 분모가 '전체 팀 수'인지 '그 자산을 건드린 팀 수'인지를 문장이 스스로 말한다.
+    # 말해 주지 않으면 팀 명부를 넣고 빼는 것만으로 같은 상황의 숫자가 달라져 보인다.
+    "assetScopeAll": "전체", "assetScopeTouched": "건드린",
     "assetBadgeConflict": "{all}팀 중 {n}팀 충돌",
     "assetBadgeWaiting": "{n}팀 등록 대기",
     "assetBadgeOk": "이상 없음",
@@ -477,8 +480,19 @@ def validate_config(v, cfg):
         assets = _keyed(v, "config.assets", cfg["assets"], ("key", "label", "plain"), ("why",),
                         strings=("label", "plain", "why"))
     if "checks" in cfg and v.lst("config.checks", cfg["checks"]):
-        checks = _keyed(v, "config.checks", cfg["checks"], ("key", "name", "plain"), ("why",),
-                        strings=("name", "plain", "why"))
+        # 이름 칸은 다른 항목(lanes·areas·statuses·assets)과 같은 `label`로 통일한다.
+        # 예전 파일이 쓰던 `name`도 계속 받는다 — 둘 중 하나만 있으면 된다.
+        for i, it in enumerate(cfg["checks"]):
+            if not isinstance(it, dict):
+                continue
+            if "label" in it and "name" not in it:
+                it["name"] = it["label"]
+            elif "name" not in it and "label" not in it:
+                v.err(f"config.checks[{i}].label", "필수 항목이 빠졌습니다",
+                      "검사 이름을 적는 칸입니다 (예전 이름 `name`도 받습니다)")
+                it["name"] = ""
+        checks = _keyed(v, "config.checks", cfg["checks"], ("key", "name", "plain"), ("why", "label"),
+                        strings=("name", "plain", "why", "label"))
 
     drift = cfg.get("drift")
     if drift is not None:
@@ -848,17 +862,19 @@ def compute(C, D):
         c_teams = len({wm[wid]["team"] for wid in linked if wm[wid]["block"] == "conflict"})
         w_teams = len({wm[wid]["team"] for wid in linked if wm[wid]["block"] == "waiting"})
         denom = len(roster) if roster is not None else teams
+        scope = T["assetScopeAll"] if roster is not None else T["assetScopeTouched"]
+        denom_label = f"{scope} {denom}"
         if c_teams:
             sev = "risk"
-            badge = _sub(T["assetBadgeConflict"], {"all": denom, "n": c_teams})
+            badge = _sub(T["assetBadgeConflict"], {"all": denom_label, "n": c_teams})
         elif w_teams:
             sev = "warn"
-            badge = _sub(T["assetBadgeWaiting"], {"all": denom, "n": w_teams})
+            badge = _sub(T["assetBadgeWaiting"], {"all": denom_label, "n": w_teams})
         else:
             sev, badge = "ok", T["assetBadgeOk"]
         assets.append({"key": key, "label": a["label"], "plain": a["plain"],
                        "why": a.get("why", ""), "sev": sev, "badge": badge,
-                       "links": linked, "teams": teams, "denom": denom,
+                       "links": linked, "teams": teams, "denom": denom, "denomLabel": denom_label,
                        "conflictTeams": c_teams, "waitTeams": w_teams})
     assets_by_key = {a["key"]: a for a in assets}
 
@@ -880,7 +896,9 @@ def compute(C, D):
             if result == "pass":
                 status = "pass"
             elif result == "fail":
-                status = worst or "warn"
+                # 실패했다고 보고했으면 실패다. 걸린 항목을 따로 적지 않았다는 이유로
+                # 주의(노랑)로 낮추면, 심각한 것을 심각하지 않게 보여 주는 셈이 된다.
+                status = worst or "block"
             else:
                 # 건너뜀·미실행이라고 보고했는데 위반이 올라와 있으면 그 검사는 분명히 돌았다.
                 # 올라온 사실이 보고보다 강하다 — 위반을 회색 뒤에 숨기지 않는다.
@@ -1014,11 +1032,11 @@ def _metric(metric, C, D, TH, wm, order, ctx):
     if kind == "asset":
         a = ctx["assets"][metric["asset"]]
         if a["conflictTeams"]:
-            reading = _read("assetConflict", "r", all=a["denom"], n=a["conflictTeams"])
+            reading = _read("assetConflict", "r", all=a["denomLabel"], n=a["conflictTeams"])
         elif a["waitTeams"]:
-            reading = _read("assetWaiting", "a", all=a["denom"], n=a["waitTeams"])
+            reading = _read("assetWaiting", "a", all=a["denomLabel"], n=a["waitTeams"])
         else:
-            reading = _read("assetOk", "g", all=a["denom"], n=a["teams"])
+            reading = _read("assetOk", "g", all=a["denomLabel"], n=a["teams"])
         return a["sev"], reading, {"work": list(a["links"]), "assets": [a["key"]]}
 
     if kind == "check":
@@ -1177,15 +1195,102 @@ def report_errors(errors):
     print("\n스키마 정본: reference/board-schema.md", file=sys.stderr)
 
 
+def starter_data(today=None):
+    """--init이 깔아 주는 첫 회차 사실. 날짜는 실행일 기준으로 계산해,
+    처음 띄운 보드가 '지금 살아 있는 판'처럼 보이게 한다."""
+    t = today or date.today()
+
+    def d(offset):
+        return (t + timedelta(days=offset)).isoformat()
+
+    return {
+        "today": t.isoformat(),
+        "works": [
+            # 두 팀이 같은 공용 컴포넌트를 서로 다르게 고쳤다 → '조화' 카드가 켜진다
+            {"id": "W-1", "title": "목록 화면 버튼 정리", "area": "screen", "team": "앱팀",
+             "status": "review", "block": "conflict", "touches": ["component"],
+             "planStart": d(-12), "planEnd": d(2), "progress": 80, "eta": d(9)},
+            {"id": "W-2", "title": "설정 화면 버튼 정리", "area": "screen", "team": "서버팀",
+             "status": "review", "block": "conflict", "touches": ["component"],
+             "planStart": d(-9), "planEnd": d(5), "progress": 60},
+            # 데이터 규격을 두 팀이 함께 건드리지만 아직 충돌은 아니다
+            {"id": "W-3", "title": "주문 응답에 배송 상태 추가", "area": "server", "team": "서버팀",
+             "status": "doing", "touches": ["spec"],
+             "planStart": d(-4), "planEnd": d(12), "progress": 35},
+            # 다른 팀 답을 기다리는 일 → 'count' 카드가 켜진다
+            {"id": "W-4", "title": "주문 목록 화면 연결", "area": "screen", "team": "앱팀",
+             "status": "done", "block": "waiting", "touches": ["spec"],
+             "planStart": d(-6), "planEnd": d(8), "progress": 90},
+            # 이미 나간 일
+            {"id": "W-5", "title": "집계 배치 정리", "area": "data", "team": "서버팀",
+             "status": "shipped",
+             "planStart": d(-20), "planEnd": d(-3), "progress": 100, "completedAt": d(-3)},
+            # 아직 일정이 안 잡힌 일 → '일정 미정' 그룹으로 간다
+            {"id": "W-6", "title": "지표 화면 개편 사전 검토", "area": "data", "team": "앱팀",
+             "status": "doing"},
+        ],
+        # 보안 점검에 걸린 것이 있다 → '기준' 카드가 켜진다.
+        # 특정 작업이 아니라 저장소 전체에 걸린 위반이라 ref를 비웠다.
+        "violations": [
+            {"check": "security", "severity": "block"},
+        ],
+        # 이번 회차에 어떤 검사가 실제로 돌았는지. 적지 않으면 '정보 없음' 회색으로 남는다.
+        "checkRuns": {"style": "pass", "test": "pass", "security": "fail"},
+    }
+
+
+def do_init(out_path):
+    """값을 먼저 보여 주고, 그다음 고치게 한다.
+    빈 칸을 스무 개 채우게 하는 대신 돌아가는 보드와 편집용 파일을 함께 깔아 준다."""
+    target = os.path.join(os.getcwd(), ".integration")
+    cfg_path = os.path.join(target, "board.config.json")
+    data_path = os.path.join(target, "board.json")
+
+    existing = [p for p in (cfg_path, data_path) if os.path.exists(p)]
+    if existing:
+        print("이미 설정 파일이 있어 덮지 않았습니다:")
+        for p in existing:
+            print(f"  {p}")
+        print("\n지금 것으로 보드를 다시 그리려면:")
+        rel = os.path.relpath(__file__)
+        if rel.startswith(".."):
+            rel = os.path.abspath(__file__)
+        print(f"  python3 {rel} \\\n"
+              f"    --config .integration/board.config.json \\\n"
+              f"    --data   .integration/board.json \\\n"
+              f"    --out    {out_path}")
+        return 1
+
+    os.makedirs(target, exist_ok=True)
+    with open(os.path.join(HERE, "board.config.starter.json"), encoding="utf-8") as fh:
+        starter_cfg = fh.read()
+    with open(cfg_path, "w", encoding="utf-8") as fh:
+        fh.write(starter_cfg)
+    with open(data_path, "w", encoding="utf-8") as fh:
+        json.dump(starter_data(), fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="config + data → 고정 통합 현황판 HTML (외부 의존 0)")
+    ap.add_argument("--init", action="store_true",
+                    help="첫 보드를 지금 띄운다. 돌아가는 설정 파일 두 개를 "
+                         ".integration/ 에 깔고 그것으로 보드를 그린다")
     ap.add_argument("--config", default=os.path.join(HERE, "board.config.example.json"),
                     help="프로젝트 config (기본: 번들된 예시)")
     ap.add_argument("--data", default=os.path.join(HERE, "board.example.json"),
                     help="이번 회차 data (기본: 번들된 예시)")
     ap.add_argument("--out", default="integration-board.html", help="산출 HTML 경로")
     args = ap.parse_args(argv)
+
+    if args.init:
+        rc = do_init(args.out)
+        if rc:
+            return rc
+        args.config = os.path.join(os.getcwd(), ".integration", "board.config.json")
+        args.data = os.path.join(os.getcwd(), ".integration", "board.json")
 
     raw_cfg = load_json(args.config, "config")
     raw_data = load_json(args.data, "data")
@@ -1209,6 +1314,31 @@ def main(argv=None):
           f"공용 자산 {len(m['assets'])} · "
           f"자동 검사 {len(m['checks'])}(통과 {m['passChecks']} · 미보고 {m['unknownChecks']}) · "
           f"{len(html.encode('utf-8')):,} bytes")
+
+    if args.init:
+        # 프로젝트 안에 있으면 짧은 상대경로가 읽기 좋고, 밖에 있으면 절대경로여야 실제로 돈다.
+        rel = os.path.relpath(__file__)
+        if rel.startswith(".."):
+            rel = os.path.abspath(__file__)
+        print("\n"
+              "── 이제 이렇게 하면 됩니다 ─────────────────────────────\n"
+              f"1. 브라우저로 열어 보세요:  {out}\n"
+              "   지금 보이는 것은 예시 내용입니다. 우리 것이 아닙니다.\n"
+              "\n"
+              "2. 아래 두 파일에서 따옴표 안의 '이름'과 '설명'만 우리 말로 바꾸세요.\n"
+              "   칸을 새로 만들 필요는 없습니다. 있는 것을 고치면 됩니다.\n"
+              "     .integration/board.config.json   우리가 무엇을 지켜볼지 (한 번 정하면 오래 갑니다)\n"
+              "     .integration/board.json          이번 회차의 사실   (돌릴 때마다 갱신합니다)\n"
+              "\n"
+              "3. 고쳤으면 이 줄을 그대로 다시 돌리세요:\n"
+              f"     python3 {rel} \\\n"
+              "       --config .integration/board.config.json \\\n"
+              "       --data   .integration/board.json \\\n"
+              f"       --out    {os.path.basename(out)}\n"
+              "\n"
+              "   틀린 값을 적으면 아무 것도 만들지 않고, 어디가 틀렸는지와\n"
+              "   대신 쓸 수 있는 값을 알려 줍니다. 외울 것이 없습니다.\n"
+              "───────────────────────────────────────────────────────")
     return 0
 
 
