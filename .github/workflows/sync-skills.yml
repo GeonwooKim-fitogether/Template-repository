@@ -34,9 +34,27 @@ jobs:
           git clone --depth 1 \
             https://github.com/geonwookim-fitogether/Template-repository .skills-src
           mkdir -p .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows
-          # 창고의 공용 자산을 이 repo로 복사(덮어쓰기).
-          # 이 repo만의 커스텀 파일은 지우지 않는다(창고 파일만 덮어씀).
-          cp -a .skills-src/.claude/skills/. .claude/skills/
+          # 스킬은 "폴더 하나가 스킬 하나"라서, 창고에 있는 스킬 폴더는 창고가 통째로 소유한다.
+          # 그래서 덮어쓰기가 아니라 폴더째 지우고 다시 깔아 창고와 똑같이 맞춘다.
+          #
+          # 왜 이렇게 하나: 예전에는 cp로 덮어쓰기만 해서, 창고에서 파일 이름이 바뀌거나
+          # 파일이 빠지면 이 repo에는 옛 파일이 그대로 남았다. 실제로 안내서가
+          # USER-GUIDE.md에서 USER-GUIDE.html로 바뀌었을 때, 두 파일이 나란히 남아
+          # 서로 다른 내용을 말하는 상태가 될 뻔했다. 읽는 사람이 낡은 쪽을 열면
+          # 틀린 안내를 받는다.
+          #
+          # 창고에 없는 스킬 폴더(이 repo만의 커스텀 스킬)는 건드리지 않는다.
+          for d in .skills-src/.claude/skills/*/; do
+            [ -d "$d" ] || continue
+            name=$(basename "$d")
+            rm -rf ".claude/skills/$name"
+            cp -a "$d" ".claude/skills/$name"
+          done
+          # 스킬 폴더 바로 아래에 놓인 파일(README 등)이 있으면 그것도 가져온다.
+          find .skills-src/.claude/skills -maxdepth 1 -type f -exec cp -a {} .claude/skills/ \;
+
+          # 아래 넷은 폴더가 아니라 파일 단위라 어느 파일이 창고 것인지 구분할 수 없다.
+          # 그래서 지금처럼 덮어쓰기만 한다(창고에서 지운 파일은 이 repo에 남는다).
           if [ -d .skills-src/.claude/rules ]; then
             cp -a .skills-src/.claude/rules/. .claude/rules/
           fi
