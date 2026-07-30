@@ -239,8 +239,8 @@ figcaption{margin:var(--sp-2) 0 0;color:var(--muted);font-size:var(--fs-sm);max-
   <div>
     <div class="eyebrow">Skill · integration-board</div>
     <h1>사용 안내서</h1>
-    <p class="lead">여러 팀의 일이 하나의 제품으로 맞물리는지 보여 주는 현황판 HTML 한 장을,
-      매 실행 같은 판으로 만든다. 달라지는 것은 숫자뿐이다.</p>
+    <p class="lead">클로드에게 한마디 하면, 여러 팀의 일이 하나의 제품으로 맞물리는지 보여 주는
+      현황판 웹페이지 한 장이 나온다. 판은 매번 같고, 달라지는 것은 숫자뿐이다.</p>
   </div>
   <button id="theme" aria-pressed="false">Dark</button>
 </div>
@@ -323,19 +323,20 @@ figcaption{margin:var(--sp-2) 0 0;color:var(--muted);font-size:var(--fs-sm);max-
     <div class="j yes"><b>이럴 때 쓴다</b><span>팀이 둘 이상이고, 그 일들이 하나로 맞물리는지를
       주기적으로 봐야 할 때. 특히 "지금 무엇을 결정해야 하나"를 윗선에 보여야 할 때.</span></div>
     <div class="j"><b>이럴 때 안 쓴다</b><span>한 팀의 할 일 목록이 필요할 때. 또는 판을 우리 마음대로
-      새로 디자인하고 싶을 때 — 판은 고정이고, 그게 이 도구의 값이다.</span></div>
+      새로 디자인하고 싶을 때 — 판은 고정이고, 그게 이 도구의 가치다.</span></div>
     <div class="j"><b>준비물이 없다</b><span>설치할 것도, 새 계정도, 자동 검사 장치도 필요 없다.
       저장소와 클로드만 있으면 된다. 팀이 둘뿐이어도 판은 그 둘로 나뉜다.</span></div>
-    <div class="j"><b>처음 띄우는 데 5분</b><span>말 한마디면 예시가 담긴 판이 먼저 나온다.
+    <div class="j"><b>처음 띄우는 데 5분</b><span>"통합 현황판 띄워줘" 한마디면 예시가 담긴 판이 먼저 나온다.
       그 화면을 보고 우리 사정을 알려 주면 우리 것이 된다. 그다음부터는 한마디로 갱신된다.</span></div>
   </div>
 </section>
 
 <section>
   <h2><i>03</i> 무엇이 나오나</h2>
-  <p>아래가 말 한마디로 실제로 나오는 화면이다. 위에서 아래로 세 칸이고, 각 칸이 답하는 질문이 다르다.
-    <b>맨 위</b>는 지금 사람이 결정해야 할 것, <b>가운데</b>는 일이 어디까지 왔고 어디서 막혔나,
-    <b>맨 아래</b>는 지켜야 할 선이 지켜지나이다.</p>
+  <p>아래가 말 한마디로 실제로 나오는 화면이다. 위에서 아래로 세 칸(보드에서는 '밴드'라 부른다)이고,
+    칸마다 답하는 질문이 다르다. <b>맨 위</b>는 지금 사람이 결정해야 할 것, <b>가운데</b>는 일이 어디까지
+    왔고 어디서 막혔는지, <b>맨 아래</b>는 지켜야 할 선이 지켜지고 있는지를 보여 준다.
+    카드를 누르면 아래 두 칸에서 그 카드와 얽힌 것만 밝아진다. 이 보드를 쓰는 가장 큰 이유다.</p>
   <figure>
     <div class="plate"><img src="data:image/jpeg;base64,
 /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys/RD84QzQ5Ojf/
@@ -1183,12 +1184,12 @@ AAF0W2G9ObNalHhwZJpgcMbTZoamnGXrvMLRFArUzeVEBUwApmrtUqBio3GI2VY3jXJnSOJopa6si3Hq
 VwxlJkedsg8Ve8apELU3Xb/zNp//AGmv/CKOIeif/aYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxjGMYxj
 GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
 " alt="통합 현황판 첫 화면. 맨 위에 종합 판정과 관심사 카드, 가운데에 칸반과 공용 자산, 맨 아래에 자동 검사 상태가 있다." style="width:100%;display:block;border-radius:var(--r-sm)"></div>
-    <figcaption>실제로 <code>--init</code>이 만든 첫 보드다. 내용은 예시이고, 이름만 우리 말로 바꾸면 우리 보드가 된다.
-      <b>카드를 누르면 아래 두 칸에서 그 카드와 얽힌 것만 밝아지고 나머지는 흐려진다</b> — 이 보드를 쓰는 가장 큰 이유다.</figcaption>
+    <figcaption>실제로 <code>--init</code>이 만든 첫 보드다. 내용은 예시이고,
+      이름만 우리 말로 바꾸면 우리 보드가 된다.</figcaption>
   </figure>
-  <p>화면을 믿어도 되는지는 <b>누가 무슨 글자를 썼는가</b>에 달려 있다. 그래서 위 화면에서 조각 넷을 떼어
-    확대하고, 글자마다 출처를 색으로 표시했다. 여기서 볼 것은 하나다 — <b>주황색으로 표시된 판정과 숫자는
-    사람이 적을 수 있는 칸이 아예 없다.</b> 그래서 잘 보이려고 고쳐 쓸 수가 없다.</p>
+  <p>화면을 믿어도 되는지는 <b>누가 무슨 글자를 썼는가</b>에 달려 있다. 아래 그림이 글자마다 출처를
+    색으로 표시해 보여 준다. 볼 것은 하나다. <b>주황색인 판정과 숫자는 사람이 적을 수 있는 칸이 아예 없어,</b>
+    잘 보이려고 고쳐 쓸 수가 없다.</p>
   <figure>
     <div class="plate"><svg xmlns="http://www.w3.org/2000/svg" id="anatomy" viewBox="0 0 1000 700" role="img"
      aria-labelledby="anatomy-ttl anatomy-desc">
@@ -1322,9 +1323,9 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
 <rect class="eng" x="40" y="646" width="10" height="10" rx="2"/>
 <text class="sm" x="58" y="655"><tspan font-weight="700">주황은 아무도 적을 수 없다.</tspan> "위험"이라는 결론도 "2건"이라는 숫자도 엔진이 계산한다. 그래서 매번 같은 기준이다.</text>
 </svg></div>
-    <p class="swipe">그림은 가로로 넘겨 볼 수 있습니다.</p>
+    <p class="swipe">그림은 가로로 넘겨 볼 수 있다.</p>
   </figure>
-  <p class="note" style="margin-top:var(--sp-3)">범례도, 밴드 이름도, 카드의 뜻과 걸리면도 보드 화면이 스스로 인쇄한다. 그래서 이 안내서에 옮겨 적지 않는다.</p>
+  <p class="note" style="margin-top:var(--sp-3)">범례도, 세 칸의 이름도, 카드의 '뜻'과 '걸리면' 줄도 보드 화면이 스스로 인쇄한다. 그래서 이 안내서에 옮겨 적지 않는다.</p>
 </section>
 
 <section>
@@ -1364,14 +1365,14 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
   </div>
   </div>
 
-  <p class="note">외울 것이 없다. 파일 이름도, 명령도, 스키마 용어도 당신 쪽 일이 아니다.
+  <p class="note">외울 것이 없다. 파일 이름도, 명령도 당신 쪽 일이 아니다.
     두 번째 말에서 <b>설정이 저장소에 커밋되는 것</b>만 기억하면 된다. 그게 남아 있어야
     다음부터 한마디로 끝나고, 판이 매번 같아진다.</p>
 </section>
 
 <section>
   <h2><i>05</i> 무엇을 "걱정"이라고 말할 수 있나</h2>
-  <p>위 대화의 두 번째 말에서 가장 중요한 것이 <b>지금 무엇이 걱정인가</b>이다. 보드의 맨 윗줄 카드가 그 걱정 하나하나다.
+  <p>우리 것으로 바꿀 때 알려 주는 네 가지 중 <b>지금 무엇이 걱정인가</b>가 가장 중요하다. 보드의 맨 윗줄 카드가 그 걱정 하나하나다.
     아무 말이나 되는 것은 아니고, 아래 여덟 가지가 보드가 셀 수 있는 걱정의 전부다.</p>
   <table class="t3">
     <thead>
@@ -1388,8 +1389,8 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
     <tr><td>위 어디에도 안 맞는 걱정이 있어</td><td>해당 작업 <b>2건</b> (세는 조건을 우리가 정한다)</td><td>무엇을 세면 되는지의 조건</td></tr>
     </tbody>
   </table>
-  <p><b>판정이나 건수는 누구도 적지 않는다.</b> "위험"이라는 결론도 "2건 결정 필요"라는 숫자도 적는 칸이 아예 없고,
-    적으려 하면 거부된다. 사람도 클로드도 사실만 말하고, 해석은 엔진이 한다. 그래서 매번 같은 기준으로 나온다.</p>
+  <p><b>사람도 클로드도 사실만 말하고, 해석은 엔진이 한다.</b> "위험"이라는 결론도 "2건 결정 필요"라는 숫자도 적는 칸이 아예 없고,
+    적으려 하면 거부된다. 그래서 매번 같은 기준으로 나온다.</p>
   <p class="note">위 표가 말하는 사실이 하나도 없으면 그 카드는 <b>회색 '알 수 없다'</b>로 남고, 초록불로 바뀌지 않는다.
     아무도 안 적은 것을 "괜찮다"고 말하면 읽는 사람이 모르는 상태를 안전한 상태로 착각하기 때문이다.
     회색이 보이면 다음 절처럼 말하면 된다.</p>
@@ -1419,7 +1420,7 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
   <dl>
     <dt>항목 하나하나의 규격, 지표 여덟 종, 검증이 막는 것</dt>
     <dd><a href="reference/board-schema.md">reference/board-schema.md</a></dd>
-    <dt>다 채워진 실제 예시 두 벌(웹 서비스 팀 · 하드웨어팀)</dt>
+    <dt>다 채워진 실제 예시 두 벌(웹 서비스 팀과 하드웨어팀)</dt>
     <dd><a href="assets/">assets/</a>의 <code>*example*.json</code> 네 개</dd>
     <dt>클로드가 이 스킬을 어떤 절차로 도는가</dt>
     <dd><a href="SKILL.md">SKILL.md</a></dd>
