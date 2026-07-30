@@ -23,7 +23,11 @@ GUIDE, SCHEMA = SKILL / "USER-GUIDE.html", SKILL / "reference" / "board-schema.m
 # 산문은 현재 약 1,600자다. 여기서 크게 벌어지면 문서가 다시 설명을 떠안기 시작한 것으로 본다.
 # 크기(kb) 상한은 넉넉하다 — 이 검사가 막으려는 것은 산문 비대이지 그림 무게가 아니다.
 # 실제 보드 스크린샷 한 장이 첫 사용자에게 가장 값이 컸으므로, 그림에는 여유를 준다.
-LIMITS = dict(prose_chars=2200, h2=6, names=8, kb=300, min_figures=1)
+# line_chars: 한 행이 이만큼 넘게 길어지면 막는다. 그림을 data URI로 심을 때 줄바꿈 없이
+# 넣으면 한 행이 10만 자가 되고, 그러면 파일을 처음부터 끝까지 읽으려는 도구가 그 행에서
+# 걸려 넘어진다. 첫 사용자 시험에서 실제로 이것 때문에 안내서 읽기가 한 번 막혔다.
+# base64는 중간에 줄을 바꿔도 브라우저가 똑같이 해독한다(Chromium에서 확인).
+LIMITS = dict(prose_chars=2200, h2=6, names=8, kb=300, min_figures=1, line_chars=400)
 
 if not GUIDE.exists():
     sys.exit(f"안내서를 찾을 수 없습니다: {GUIDE}")
@@ -58,6 +62,14 @@ check("산문 글자 수", len(prose), LIMITS["prose_chars"], "자")
 check("절 제목(h2) 수", h2, LIMITS["h2"], "개")
 check(f"산문에 등장한 스키마 항목 이름 {hit[:8]}", len(hit), LIMITS["names"], "개")
 check("파일 크기", round(size_kb), LIMITS["kb"], "KB")
+long_lines = [(i, len(l)) for i, l in enumerate(html.splitlines(), 1)
+              if len(l) > LIMITS["line_chars"]]
+if long_lines:
+    worst = ", ".join(f"{i}행 {n:,}자" for i, n in long_lines[:3])
+    fails.append(f"  너무 긴 행이 {len(long_lines)}개다 ({worst}) — 상한 {LIMITS['line_chars']}자."
+                 " 그림을 data URI로 심었다면 base64를 120자마다 줄바꿈해 넣는다."
+                 " 브라우저는 똑같이 해독하고, 파일을 통째로 읽는 도구가 걸려 넘어지지 않는다")
+
 if figures < LIMITS["min_figures"]:
     fails.append(f"  그림(인라인 SVG)이 {figures}개다 — 최소 {LIMITS['min_figures']}개는 있어야 한다."
                  " 이 안내서는 그림이 중심이고 글은 그 주변이다")
