@@ -1,0 +1,110 @@
+# PR 크로스컷 게이트 (자동 실행)
+#
+# 왜 이 워크플로가 있나. `.claude/commands/pr-gate.md` 는 PR 하나를 네 축으로 검토하는
+# 게이트다 — 문서 갱신 매트릭스(축 A) · 척추 준수(축 B) · 타 파트 영향(축 C) ·
+# 배선·적용(축 D). 그런데 그것은 슬래시 커맨드라서 **사람이 부를 때만** 돌았다.
+#
+# 그 게이트를 만든 근거가 "프롬프트 속 다짐은 잊히므로, 잊혀도 기계적으로 잡히는 장치가
+# 하나는 있어야 한다"였다. 부르는 것을 기억해야 도는 장치는 그 근거를 만족하지 못한다.
+# 이 워크플로가 그 구멍을 메워, PR이 열리거나 갱신될 때마다 게이트가 자동으로 돈다.
+#
+# 두뇌는 여기 없다. 검사 절차의 단일 원본은 `.claude/commands/pr-gate.md` 이고,
+# 이 yml 은 그것을 PR 맥락에서 실행하는 얇은 호출부다(file-registry.yml 과 같은 구조).
+#
+# ── 도입 2단계 ──────────────────────────────────────────────────────────────
+# 지금은 **1단계(경고)** 다. 게이트는 판정을 PR 코멘트로 남기지만 체크를 실패시키지 않는다.
+# 이유는 오탐률을 아직 재지 않았기 때문이다 — 축 D의 고아 코드·죽은 스위치 검사는
+# 파일 위치로 라우트가 자동 등록되는 프레임워크나 동적 import 에서 어긋날 수 있다.
+# 몇 번의 PR로 오탐을 관찰한 뒤 **2단계(차단)** 로 올린다.
+#   2단계 전환 방법: 아래 `continue-on-error: true` 한 줄을 지운다.
+#
+# ── 준비물 ─────────────────────────────────────────────────────────────────
+# 저장소 시크릿 `ANTHROPIC_API_KEY` 가 필요하다.
+#   설정: 저장소 → Settings → Secrets and variables → Actions → New repository secret
+# 시크릿이 없으면 이 워크플로는 **조용히 넘어가지 않고** 경고 주석(annotation)과 요약을
+# 남긴다. 침묵으로 "검사했다"처럼 보이게 하는 것이 이 게이트가 막으려는 것이기 때문이다.
+
+name: PR 크로스컷 게이트
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch: {}
+
+# 같은 PR에 연속 푸시가 나면 앞 실행을 취소해 토큰을 낭비하지 않는다.
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read           # diff·파일을 읽는다
+  pull-requests: write     # 게이트 판정을 PR 코멘트로 남긴다
+
+jobs:
+  pr-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 축 D의 고아 코드·죽은 스위치 검사는 저장소 전체를 검색하고,
+          # 축 A·C는 main 대비 diff 를 본다. 얕은 클론이면 둘 다 불가능하다.
+          fetch-depth: 0
+
+      - name: 시크릿 확인 (없으면 침묵하지 않는다)
+        id: secret
+        env:
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=PR 게이트가 돌지 않았습니다::저장소 시크릿 ANTHROPIC_API_KEY 가 없어 크로스컷 게이트를 실행하지 못했습니다. Settings → Secrets and variables → Actions 에서 추가하세요."
+            {
+              echo "## PR 크로스컷 게이트 — 실행되지 않음"
+              echo ""
+              echo "저장소 시크릿 \`ANTHROPIC_API_KEY\` 가 설정돼 있지 않아 게이트를 돌리지 못했습니다."
+              echo ""
+              echo "**이 체크가 초록불이라도 게이트를 통과한 것이 아닙니다.** 네 축(문서 갱신·척추 준수·타 파트 영향·배선/적용) 중 아무것도 확인되지 않았습니다."
+              echo ""
+              echo "설정 방법: 저장소 → Settings → Secrets and variables → Actions → New repository secret → 이름 \`ANTHROPIC_API_KEY\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 크로스컷 게이트 실행 (pr-gate.md 절차)
+        if: steps.secret.outputs.have == 'true'
+        # 1단계(경고): 게이트가 차단 판정을 내도 체크를 실패시키지 않는다.
+        # 2단계(차단)로 올릴 때 이 한 줄을 지운다.
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # 절차의 단일 원본은 커맨드 파일이다. 여기서 절차를 복사하지 않고 그 파일을 읽게 한다 —
+          # 복사하면 커맨드가 개선될 때 이 yml 이 낡은 검사를 계속 돌리는 드리프트가 생긴다.
+          prompt: |
+            너는 이 저장소의 PR 크로스컷 게이트(KimGate)다.
+
+            검토 대상: PR #${{ github.event.pull_request.number }} (베이스 `${{ github.base_ref }}`, 헤드 `${{ github.head_ref }}`)
+
+            먼저 `.claude/commands/pr-gate.md` 를 Read 로 읽고, **그 문서에 적힌 절차를 그대로 따르라.**
+            네 축(A 문서 갱신 매트릭스 · B 척추 준수 · C 타 파트 영향 · D 배선·적용)을 순서대로 검사하고
+            판정 하나를 낸다. 판정 기준·오탐 주의·판돈 조절 규칙은 모두 그 문서에 있으니 새로 만들지 마라.
+
+            diff 는 `git diff --name-only origin/${{ github.base_ref }}...HEAD` 로 얻고,
+            필요한 파일은 Read 로 직접 열어라. 저장소 전체 검색이 필요하면 Grep 을 쓴다.
+
+            결과는 이 PR에 코멘트 하나로 남긴다. 형식은 이렇게 한다.
+              - 맨 위에 판정 한 줄 (통과 / 주의 / 차단) 과 그 이유 한 문장
+              - 축별로 무엇을 확인했고 무엇이 걸렸는지 (걸린 것이 없는 축은 한 줄로)
+              - 차단·주의 항목은 "무엇을 고치면 통과인지" 를 구체적으로
+              - 검사하지 못한 축이 있으면 반드시 명시 (침묵 금지)
+
+            지금은 도입 1단계라 이 게이트는 머지를 막지 않는다. 그러니 판정을 흐리지 말고
+            분명하게 적되, 사소한 diff(오타·문서 한 줄)에는 코멘트를 남기지 말고 통과시켜라
+            (판돈에 맞춘다 — pr-gate.md 4절).
+
+            보고 어투는 `.claude/rules/communication.md` 를 따른다 — 결론 먼저, 압축된 기호
+            나열 대신 한 번에 읽히는 문장으로.
+          # 토큰 상한. 게이트는 읽고 판정하는 일이므로 이 정도로 충분하다.
+          claude_args: "--max-turns 30"

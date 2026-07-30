@@ -88,6 +88,22 @@ FITogether 팀의 **Claude Code 공용 자산 창고 + 새 프로젝트 템플�
 `.claude/skills/` · `.claude/rules/` · `.claude/agents/` 를 자기 repo로 다시 받아옵니다.
 즉 창고만 고치면 하위 프로젝트들이 알아서 따라옵니다. (즉시 반영이 필요하면 그 repo의 Actions에서 워크플로를 수동 실행)
 
+> ⚠️ **동기화 봇은 `.claude/` 만 내려보냅니다.** `.github/workflows/` 와 각 repo의 `CLAUDE.md` 는
+> 동기화 대상이 아니라 저장소별로 관리합니다. 아래 PR 게이트처럼 워크플로를 새로 추가할 때는
+> 기존 repo에 **직접 넣어야** 합니다("Use this template"로 새로 만든 repo는 함께 물려받습니다).
+
+## 🚦 PR 자동 검사 (GitHub Actions)
+
+PR이 열리거나 갱신될 때 자동으로 도는 검사들입니다. 사람이 매번 기억해서 확인하던 규칙을 검사로 격상한 것입니다.
+
+| 워크플로 | 무엇을 검사하나 | 상태 |
+|---|---|---|
+| `pr-gate.yml` | **크로스컷 게이트** — [`/pr-gate`](.claude/commands/pr-gate.md) 절차를 Claude가 실행해 네 축을 본다: 문서 갱신 매트릭스 이행 · 척추 준수 · 타 파트 영향 · **배선·적용**(만든 것이 화면에 실제로 노출되나). 판정을 PR 코멘트로 남긴다 | 1단계(경고) — 코멘트만 남기고 머지는 막지 않음. 시크릿 `ANTHROPIC_API_KEY` 필요 |
+| `file-registry.yml` | 파일 등록부에 없는 새 파일(반발산 게이트) | 1단계(경고) |
+| `readme-skills.yml` | 스킬 폴더가 추가됐는데 README 표에 행이 없는 드리프트 (창고 전용) | 차단 |
+
+`pr-gate.yml`의 검사 절차는 **`.claude/commands/pr-gate.md` 하나가 정본**입니다. 워크플로는 그 파일을 읽어 따르는 얇은 호출부이므로, 검사를 고칠 때는 커맨드 파일만 고칩니다. 오탐률을 확인한 뒤 워크플로의 `continue-on-error: true` 한 줄을 지워 **2단계(차단)** 로 올립니다.
+
 ## 📏 공용 규칙 (관리자용)
 
 규칙도 스킬과 똑같이 **이 repo의 `.claude/rules/` 에서만** 관리합니다.
