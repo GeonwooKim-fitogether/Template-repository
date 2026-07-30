@@ -115,6 +115,15 @@ FITogether 팀의 **Claude Code 공용 자산 창고 + 새 프로젝트 템플�
 
 ---
 
+## 📐 시스템층 설계 문서
+
+창고 자체(팀 규칙·게이트·오케스트레이션)의 설계와 개선 계획은 `docs/system-layer/` 에 둡니다.
+
+- [완료 기준 교정 계획](docs/system-layer/completion-standard-plan.md) — 팀 전체의 완료 기준을 "코드가 있고 테스트가 통과한다"에서 "사용자가 화면에서 직접 볼 수 있다(노출 증명)"로 바꾸는 검토 결과와 8단계 개발 계획.
+- [머지 게이트 설계](docs/system-layer/merge-gate-design.md) — 파트 브랜치가 main에 머지되기 직전에 되돌림(rollback)을 막는 장치의 설계.
+
+---
+
 ## 📌 참고: fitogether-user-guide 스킬
 
 제품 유저가이드 PDF 생성 스킬(`fitogether-user-guide`)은 폰트 등 약 9MB라 모든 프로젝트에
