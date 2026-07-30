@@ -168,8 +168,10 @@ READ = {
     "checkTail": "자동 검사 {all}개 중 [[{pass}개]] 통과",
     "checkTailUnknown": "자동 검사 {all}개 중 [[{pass}개]] 통과 · 미보고 {unknown}개",
     "stallNone": "멈춰 있는 작업 없음",
+    "stallNoData": "멈춘 기간이 보고되지 않았다 — 이 구획은 아직 알 수 없다",
     "stall": "{label}{josa} [[{days}일]]째 움직이지 않는다",
     "delayNone": "계획보다 늦은 작업 없음",
+    "delayNoData": "계획일과 예상일이 보고되지 않았다 — 늦었는지 알 수 없다",
     "delay": "[[{n}건]]이 계획보다 [[{days}일]] 늦다",
     "undatedNone": "모든 작업이 시간 축에 올라가 있다",
     "undated": "[[{n}건]]이 아직 시간 축에 올라가지 못했다",
@@ -1055,8 +1057,12 @@ def _metric(metric, C, D, TH, wm, order, ctx):
 
     if kind == "area_stalled":
         ids = [w for w in order if wm[w]["area"] == metric["area"]]
-        stalled = [(D["works"][w].get("stalledDays", 0), w) for w in ids]
-        days, worst = max(stalled) if stalled else (0, None)
+        # "멈춘 작업이 없다"와 "멈춘 기간을 아무도 안 적었다"는 전혀 다른 말이다.
+        # 뒤쪽을 초록으로 그리면 보드가 모르는 것을 안다고 말하게 되므로, 회색으로 남긴다.
+        told = [w for w in ids if "stalledDays" in D["works"][w]]
+        if not told:
+            return "info", _read("stallNoData", "i"), {"work": ids}
+        days, worst = max((D["works"][w]["stalledDays"], w) for w in told)
         if not days:
             return "ok", _read("stallNone", "g"), {"work": ids}
         sev = "risk" if days >= TH["stallRiskDays"] else "warn"
@@ -1066,8 +1072,12 @@ def _metric(metric, C, D, TH, wm, order, ctx):
 
     if kind == "area_delay":
         ids = [w for w in order if wm[w]["area"] == metric["area"]]
-        late = [(w, wm[w]["et"] - wm[w]["e"]) for w in ids
-                if wm[w]["e"] is not None and wm[w]["et"] is not None and wm[w]["et"] > wm[w]["e"]]
+        # 늦음은 계획 종료일과 예상 종료일을 견줘야 나온다. 둘 다 적힌 작업이 하나도
+        # 없으면 "늦은 작업 없음"이 아니라 "견줄 근거가 없음"이므로 회색으로 남긴다.
+        told = [w for w in ids if wm[w]["e"] is not None and wm[w]["et"] is not None]
+        late = [(w, wm[w]["et"] - wm[w]["e"]) for w in told if wm[w]["et"] > wm[w]["e"]]
+        if not told:
+            return "info", _read("delayNoData", "i"), {"work": ids}
         if not late:
             return "ok", _read("delayNone", "g"), {"work": ids}
         worst = max(d for _, d in late)

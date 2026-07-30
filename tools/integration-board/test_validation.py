@@ -253,6 +253,22 @@ def run(cfg, data):
         return p.returncode, p.stdout + p.stderr, os.path.exists(op)
 
 
+def run_html(cfg, data):
+    """렌더까지 하고 만들어진 HTML 본문을 돌려준다.
+
+    D절은 '거부되는가'가 아니라 '무슨 문장이 나오는가'를 보기 때문에 본문이 필요하다.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        cp, dp = os.path.join(tmp, "c.json"), os.path.join(tmp, "d.json")
+        op = os.path.join(tmp, "o.html")
+        json.dump(cfg, open(cp, "w", encoding="utf-8"), ensure_ascii=False)
+        json.dump(data, open(dp, "w", encoding="utf-8"), ensure_ascii=False)
+        p = subprocess.run([sys.executable, ENGINE, "--config", cp, "--data", dp, "--out", op],
+                           capture_output=True, text=True)
+        html = open(op, encoding="utf-8").read() if os.path.exists(op) else ""
+        return p.returncode, p.stdout + p.stderr, html
+
+
 def run_files(cfg_path, data_path):
     with tempfile.TemporaryDirectory() as tmp:
         op = os.path.join(tmp, "o.html")
@@ -303,6 +319,46 @@ def main():
     print(f"  {'통과' if good else '실패'}  board.config.web-example.json + board.web-example.json")
     if not good:
         print("        " + out.strip()[:900])
+
+    print("\nD. 사실이 없으면 초록불이 아니라 '알 수 없다'로 나와야 한다")
+    # 보드가 저지를 수 있는 가장 위험한 거짓말은 '거부'가 아니라 '조용한 초록불'이다.
+    # 아무도 멈춘 기간을 안 적었는데 "멈춘 작업 없음"이라고 말하면, 읽는 사람은
+    # 모르는 상태를 안전한 상태로 착각한다. 그래서 두 방향을 함께 못 박는다.
+    for name, strip, want, avoid in (
+        ("멈춘 기간 미보고 → 회색 '알 수 없다'",
+         ("stalledDays",), "멈춘 기간이 보고되지 않았다", "멈춰 있는 작업 없음"),
+        # planStart도 함께 지운다 — 계획일은 짝이어야 하므로 한쪽만 지우면 검증에서 먼저 막힌다.
+        ("계획일·예상일 미보고 → 회색 '알 수 없다'",
+         ("planStart", "planEnd", "eta"),
+         "계획일과 예상일이 보고되지 않았다", "계획보다 늦은 작업 없음"),
+    ):
+        data = copy.deepcopy(BASE_DATA)
+        for w in data["works"]:
+            for f in strip:
+                w.pop(f, None)
+        rc, out, html = run_html(copy.deepcopy(BASE_CFG), data)
+        good = rc == 0 and want in html and avoid not in html
+        npass += good
+        nfail += not good
+        print(f"  {'통과' if good else '실패'}  {name}")
+        if not good:
+            print(f"        종료 코드 {rc} · 기대 문구 있음 {want in html} · "
+                  f"금지 문구 없음 {avoid not in html}")
+            print("        " + out.strip()[:600])
+
+    # 반대 방향 — 사실을 적고 그 사실이 '정상'이면 초록 문장이 그대로 나와야 한다.
+    data = copy.deepcopy(BASE_DATA)
+    for w in data["works"]:
+        w["stalledDays"] = 0
+        if w.get("planEnd"):
+            w["eta"] = w["planEnd"]
+    rc, out, html = run_html(copy.deepcopy(BASE_CFG), data)
+    good = rc == 0 and "멈춰 있는 작업 없음" in html and "계획보다 늦은 작업 없음" in html
+    npass += good
+    nfail += not good
+    print(f"  {'통과' if good else '실패'}  사실을 적고 정상이면 초록 문장이 나온다")
+    if not good:
+        print("        " + out.strip()[:600])
 
     print(f"\n결과: 통과 {npass} · 실패 {nfail}")
     return 1 if nfail else 0
