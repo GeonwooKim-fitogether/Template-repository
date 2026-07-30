@@ -62,11 +62,22 @@ button:active{transform:translateY(.5px)}
 button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 
 /* ── 절 ───────────────────────────────────────────────────────────── */
-section{margin-top:var(--sp-5)}
-h2{font-size:var(--fs-h);font-weight:700;color:var(--strong);margin:0 0 var(--sp-3);
-  display:flex;align-items:baseline;gap:var(--sp-2)}
-h2 i{font-family:var(--mono);font-style:normal;font-size:var(--fs-xs);color:var(--dim)}
-p{margin:0 0 var(--sp-3);max-width:74ch}
+/* 스크롤하며 훑는 사람에게 절의 경계가 보여야 한다. 그래서 절마다 위에 실선을 긋고
+   위 여백을 넉넉히 두어, 일곱 덩어리가 눈으로 세어지게 한다. */
+section{margin-top:34px;padding-top:var(--sp-5);border-top:1px solid var(--border)}
+section:first-of-type{border-top:0}
+h2{font-size:17px;font-weight:700;color:var(--strong);margin:0 0 var(--sp-4);
+  display:flex;align-items:center;gap:10px;letter-spacing:-.01em}
+/* 번호는 일곱 절을 세어 주는 표지일 뿐 강조가 아니다. 그래서 무채색으로 둔다. */
+h2 i{font-family:var(--mono);font-style:normal;font-size:var(--fs-xs);color:var(--dim);
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:3px 5px;line-height:1;flex:none}
+/* 문단 사이를 조금 더 벌린다. 1절처럼 산문이 이어지는 곳에서 덩어리가 나뉘어 보이게. */
+p{margin:0 0 var(--sp-4);max-width:72ch}
+/* 절마다 첫 문단이 그 절의 결론이다. 한 단계 크고 진하게 두어 훑는 눈에 먼저 걸리게 한다. */
+section>p:first-of-type{font-size:14.5px;color:var(--strong);max-width:70ch;
+  border-left:2px solid var(--border-strong);padding-left:var(--sp-3);
+  margin-bottom:var(--sp-4)}
 .note{color:var(--muted);font-size:var(--fs-sm)}
 code{font-family:var(--mono);font-size:var(--fs-sm);color:var(--strong);
   background:var(--card);border:1px solid var(--border);border-radius:3px;padding:0 4px}
@@ -74,7 +85,7 @@ a{color:var(--link);text-decoration:none;border-bottom:1px solid transparent}
 a:hover{border-bottom-color:currentColor}
 
 /* ── 쓸지 판단하는 네 칸 ──────────────────────────────────────────── */
-.judge{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)}
+.judge{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3)}
 .j{background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);
   padding:var(--sp-3) var(--sp-3) var(--sp-3) 14px;box-shadow:var(--sh-1);position:relative}
 .j::before{content:"";position:absolute;left:0;top:var(--sp-3);bottom:var(--sp-3);
@@ -83,8 +94,36 @@ a:hover{border-bottom-color:currentColor}
 .j b{display:block;color:var(--strong);font-size:var(--fs-body);margin-bottom:2px}
 .j span{color:var(--muted);font-size:var(--fs-sm)}
 
+/* ── 표 ───────────────────────────────────────────────────────────── */
+/* 5·6절의 표는 "이렇게 말하면 이게 나온다"의 보기다. 그래서 말하는 칸에만 4절 말풍선과
+   같은 틸을 입힌다. 이 문서에서 틸은 '당신이 하는 말' 하나만 뜻하고, 다른 데 쓰지 않는다.
+   열 너비는 내용에 맡기지 않고 고정한다 — 회차마다 글자가 달라져도 판이 흔들리지 않게. */
+table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;
+  margin:0 0 var(--sp-4);background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--sh-1);overflow:hidden}
+th{text-align:left;vertical-align:bottom;font-size:var(--fs-xs);font-weight:700;
+  color:var(--muted);letter-spacing:.04em;padding:9px var(--sp-3);
+  background:var(--code-bg);border-bottom:1px solid var(--border-strong)}
+td{vertical-align:top;padding:10px var(--sp-3);border-top:1px solid var(--border)}
+tbody tr:first-child td{border-top:0}
+td b{color:var(--strong)}
+/* 말하는 칸 — 5절은 첫 칸, 6절은 둘째 칸. */
+.t3 td:nth-child(1),.t2 td:nth-child(2){background:var(--teal-bg);color:var(--strong);
+  box-shadow:inset 3px 0 0 var(--teal)}
+/* 셋째 칸은 "그러려면 무엇이 필요한가"라는 곁가지다. 작고 흐리게 두어 앞 둘을 먼저 읽게 한다. */
+.t3 td:nth-child(3){font-size:var(--fs-sm);color:var(--muted)}
+/* 열 너비는 칸이 가로로 놓일 때만 뜻이 있다. 폰에서는 아래에서 세로로 쌓으므로 여기서만 준다.
+   말하는 칸은 줄이 접히면 안 되니 가장 긴 말에 맞춰 먼저 주고, 남은 폭을 나눈다. */
+@media (min-width:641px){
+  .t3 th:nth-child(1),.t3 td:nth-child(1){width:40%}
+  .t3 th:nth-child(2),.t3 td:nth-child(2){width:32%}
+  .t3 th:nth-child(3),.t3 td:nth-child(3){width:28%}
+  .t2 th:nth-child(1),.t2 td:nth-child(1){width:40%}
+}
+
 /* ── 해부도 ───────────────────────────────────────────────────────── */
 figure{margin:0}
+figcaption{margin:var(--sp-2) 0 0;color:var(--muted);font-size:var(--fs-sm);max-width:80ch}
 .plate{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--sp-2);box-shadow:var(--sh-1);overflow-x:auto}
 /* 좁은 화면에서 그림을 통째로 줄이면 안의 글자가 읽히지 않는다. 최소 폭을 지키고
@@ -98,14 +137,28 @@ figure{margin:0}
 /* 이 문서의 독자는 터미널을 쓰지 않고 클로드에게 말로 시킨다. 그래서 "무엇을 하나"를
    명령 줄이 아니라 실제로 오가는 말로 보여 준다. 말을 코드 블록에 넣으면 명령처럼
    보이므로, 코드 블록과 시각적으로 확실히 다르게 그린다. */
-.step{color:var(--dim);font-size:var(--fs-xs);font-family:var(--mono);
-  letter-spacing:.06em;margin:var(--sp-4) 0 var(--sp-2)}
-.talk{display:grid;gap:var(--sp-2);margin:0 0 var(--sp-3)}
-.turn{display:grid;grid-template-columns:52px 1fr;gap:var(--sp-3);align-items:start}
+/* 이 절이 독자가 실제로 하는 일이다. 그래서 판을 하나 깔아 표들보다 무겁게 세운다. */
+.doit{background:var(--page);border:1px solid var(--border-strong);
+  border-radius:var(--r-lg);padding:var(--sp-4) var(--sp-4) var(--sp-3);
+  counter-reset:step;margin:0 0 var(--sp-3)}
+/* 세 마디가 순서라는 것이 번호로 보이게 한다. 번호는 CSS가 세므로 글이 늘지 않는다. */
+.step{counter-increment:step;display:flex;align-items:center;gap:var(--sp-2);
+  color:var(--strong);font-size:var(--fs-body);font-weight:700;
+  margin:var(--sp-5) 0 var(--sp-3)}
+.step:first-child{margin-top:0}
+.step::before{content:counter(step);font-family:var(--mono);font-size:var(--fs-xs);
+  font-weight:700;color:var(--card);background:var(--strong);border-radius:50%;
+  width:19px;height:19px;display:grid;place-items:center;flex:none}
+.step::after{content:"";flex:1;height:1px;background:var(--border-strong)}
+.talk{display:grid;gap:var(--sp-2);margin:0}
+.turn{display:grid;grid-template-columns:52px minmax(0,1fr);gap:var(--sp-3);
+  align-items:start}
 .who{font-size:var(--fs-xs);color:var(--dim);text-align:right;padding-top:8px}
+/* 말풍선은 내용만큼만 넓어진다. 넉 자짜리 말이 판을 가로지르면 대화로 안 읽힌다. */
 .say{background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:var(--sp-2) var(--sp-3);box-shadow:var(--sh-1)}
-.say.me{background:var(--teal-bg);border-color:var(--teal)}
+  padding:var(--sp-2) var(--sp-3);box-shadow:var(--sh-1);
+  width:fit-content;max-width:min(100%,66ch)}
+.say.me{background:var(--teal-bg);border-color:var(--teal);color:var(--strong)}
 .say p{margin:0;max-width:none}
 .say p+p{margin-top:6px}
 .say .out{color:var(--muted);font-size:var(--fs-sm)}
@@ -116,19 +169,40 @@ figure{margin:0}
 }
 
 /* ── 더 깊이 볼 곳 ───────────────────────────────────────────────── */
-.more{border-top:1px solid var(--border);margin-top:var(--sp-5);padding-top:var(--sp-4)}
-.more dl{margin:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);
-  gap:var(--sp-1) var(--sp-4)}
-.more dt{color:var(--muted);font-size:var(--fs-sm);min-width:0}
+/* 묻는 것과 갈 곳이 멀리 떨어져 있어 짝이 안 보였다. 줄마다 실선을 그어 한 줄로 묶는다. */
+/* 실선이 두 칸을 하나로 이어야 하므로 칸 사이를 벌리지 않고 여백은 안쪽 패딩으로 준다. */
+.more dl{margin:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);gap:0}
+.more dt,.more dd{border-top:1px solid var(--border);padding:8px 0}
+.more dt:first-of-type,.more dl>dd:first-of-type{border-top:0;padding-top:0}
+.more dt{color:var(--muted);font-size:var(--fs-sm);min-width:0;padding-right:var(--sp-4)}
 .more dd{margin:0;font-family:var(--mono);font-size:var(--fs-sm);text-align:right}
+.more dd code{overflow-wrap:anywhere}
 
 /* ── 좁은 폭 ─────────────────────────────────────────────────────── */
 @media (max-width:720px){
   .wrap{padding:var(--sp-4) var(--sp-3) 40px}
   .judge{grid-template-columns:1fr}
-  .more dl{grid-template-columns:1fr;gap:0}
-  .more dd{text-align:left;margin:0 0 var(--sp-2)}
+  .more dl{grid-template-columns:1fr}
+  .more dt{padding-bottom:0}
+  .more dd{text-align:left;border-top:0;padding-top:2px}
+  .more dl>dd:first-of-type{padding-top:2px}
   h1{font-size:18px}
+  .doit{padding:var(--sp-3) var(--sp-3) var(--sp-2)}
+}
+/* 폰에서는 세 칸을 나란히 둘 수 없다. 줄을 카드 하나로 세우고 위에서 아래로 읽게 바꾼다.
+   말하는 칸이 맨 위 틸 풍선으로 오고, 나머지는 그 아래 딸린 것으로 보인다. */
+@media (max-width:640px){
+  table{display:block;padding:var(--sp-2) 0}
+  thead{display:none}
+  tbody,tr,td{display:block;width:auto}
+  tr{border-top:1px solid var(--border);padding:var(--sp-3) var(--sp-2)}
+  tbody tr:first-child{border-top:0;padding-top:var(--sp-1)}
+  td{border-top:0;padding:3px var(--sp-2) 3px 15px}
+  /* 풍선 안 글자가 이웃 칸의 글자와 같은 세로선에서 시작하도록 테두리 1px을 빼고 맞춘다. */
+  .t3 td:nth-child(1),.t2 td:nth-child(2){box-shadow:none;border:1px solid var(--teal);
+    border-radius:var(--r-md);padding:var(--sp-2) var(--sp-3) var(--sp-2) 14px;
+    margin-bottom:6px}
+  .t2 td:nth-child(1){padding-bottom:6px}
 }
 
 /* ── 인쇄 ────────────────────────────────────────────────────────── */
@@ -139,12 +213,18 @@ figure{margin:0}
     --page:#fff; --card:#fff; --code-bg:#fff; --code-ink:#111; --sh-1:none;
     --ink:#1a1a1a; --strong:#000; --muted:#3d3d3d; --dim:#666;
     --border:#c9cdd0; --border-strong:#9aa0a4; --teal:#2b7a78; --link:#000;
+    /* 어두운 테마로 보다 인쇄하면 말풍선·표의 틸 바탕이 검게 남던 것을 여기서 되돌린다. */
+    --teal-bg:#eef4f3;
   }
   body{background:#fff;color:var(--ink);font-size:10.5pt}
   .wrap{max-width:none;padding:0}
   button,.swipe{display:none !important}
   /* 쪼개지면 안 되는 것만 붙여 둔다. 절 전체를 묶으면 한 페이지가 반쯤 비어 버린다. */
-  figure,.j,.turn,.more dl{break-inside:avoid;page-break-inside:avoid}
+  figure,.j,.turn,tr,.more dt,.more dd{break-inside:avoid;page-break-inside:avoid}
+  /* 표가 페이지를 넘어가면 다음 장에도 머리글을 다시 찍는다. */
+  thead{display:table-header-group}
+  table,.doit{box-shadow:none}
+  .doit{background:#fff;border-color:#bbb}
   h2{break-after:avoid;page-break-after:avoid}
   .plate{overflow:visible;border-color:#bbb}
   #anatomy{min-width:0}
@@ -248,10 +328,6 @@ figure{margin:0}
       저장소와 클로드만 있으면 된다. 팀이 둘뿐이어도 판은 그 둘로 나뉜다.</span></div>
     <div class="j"><b>처음 띄우는 데 5분</b><span>말 한마디면 예시가 담긴 판이 먼저 나온다.
       그 화면을 보고 우리 사정을 알려 주면 우리 것이 된다. 그다음부터는 한마디로 갱신된다.</span></div>
-  </div>
-    <div class="j"><b>이럴 때 안 쓴다</b><span>한 팀의 할 일 목록일 때, 또는 판을 우리 마음대로 새로 디자인하고 싶을 때(판은 고정이다).</span></div>
-    <div class="j"><b>팀이 둘뿐이어도 된다</b><span>격자는 선언한 개수만큼 나뉜다. 아래 최소 예시도 팀 둘에 카드 하나다.</span></div>
-    <div class="j"><b>CI가 없어도 된다</b><span>검사를 선언하지 않으면 그 자리가 화면에서 사라지고, 보고하지 않은 검사는 초록이 아니라 회색 ‘정보 없음’으로 남는다.</span></div>
   </div>
 </section>
 
@@ -1256,6 +1332,7 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
   <p>여기서부터가 당신이 하는 일이다. 그런데 그 일은 파일을 고치는 것이 아니라 <b>말하는 것</b>이다.
     아래가 처음부터 끝까지의 전부이고, 실제로 오가는 대화를 그대로 옮겼다.</p>
 
+  <div class="doit">
   <div class="step">처음 한 번 — 일단 띄워 본다</div>
   <div class="talk">
     <div class="turn"><div class="who">나</div><div class="say me">
@@ -1285,6 +1362,7 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
       <p>열린 PR과 최근 커밋을 읽어 이번 회차 사실로 갱신했습니다. <span class="lk">[링크]</span></p>
       <p class="out">판정은 위험이고, 사람이 결정해야 할 것이 2건입니다.</p></div></div>
   </div>
+  </div>
 
   <p class="note">외울 것이 없다. 파일 이름도, 명령도, 스키마 용어도 당신 쪽 일이 아니다.
     두 번째 말에서 <b>설정이 저장소에 커밋되는 것</b>만 기억하면 된다. 그게 남아 있어야
@@ -1295,8 +1373,11 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
   <h2><i>05</i> 무엇을 "걱정"이라고 말할 수 있나</h2>
   <p>위 대화의 두 번째 말에서 가장 중요한 것이 <b>지금 무엇이 걱정인가</b>이다. 보드의 맨 윗줄 카드가 그 걱정 하나하나다.
     아무 말이나 되는 것은 아니고, 아래 여덟 가지가 보드가 셀 수 있는 걱정의 전부다.</p>
-  <table>
+  <table class="t3">
+    <thead>
     <tr><th>이렇게 말하면</th><th>보드가 매번 세어 주는 것</th><th>이걸 보려면 클로드가 알아야 하는 사실</th></tr>
+    </thead>
+    <tbody>
     <tr><td>여러 팀이 같은 것을 서로 다르게 고치는 게 걱정이야</td><td>전체 5팀 중 <b>2팀</b>이 서로 다르게 고쳤다</td><td>어느 일이 그 공용물을 건드리는지</td></tr>
     <tr><td>지켜야 할 선이 실제로 지켜지는지 보고 싶어</td><td>위반 후보 <b>1건</b> · 검사 5개 중 <b>3개</b> 통과</td><td>어떤 검사가 이번에 돌았고 무엇이 걸렸는지</td></tr>
     <tr><td>어느 구획이 막혀서 뒤가 밀리는지 보고 싶어</td><td>검토대기가 <b>12일</b>째 움직이지 않는다</td><td>각 일이 며칠째 멈춰 있는지</td></tr>
@@ -1305,10 +1386,11 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
     <tr><td>최근에 무엇이 실제로 나갔는지 보고 싶어</td><td>최근 7일 배포완료 <b>1건</b></td><td>각 일이 언제 끝났는지</td></tr>
     <tr><td>만들다 보니 기획과 벌어진 곳이 쌓이는 게 걱정이야</td><td>기획 이탈 <b>3건</b> 누적</td><td>어느 일이 기획과 달라졌는지</td></tr>
     <tr><td>위 어디에도 안 맞는 걱정이 있어</td><td>해당 작업 <b>2건</b> (세는 조건을 우리가 정한다)</td><td>무엇을 세면 되는지의 조건</td></tr>
+    </tbody>
   </table>
   <p><b>판정이나 건수는 누구도 적지 않는다.</b> "위험"이라는 결론도 "2건 결정 필요"라는 숫자도 적는 칸이 아예 없고,
     적으려 하면 거부된다. 사람도 클로드도 사실만 말하고, 해석은 엔진이 한다. 그래서 매번 같은 기준으로 나온다.</p>
-  <p class="note">오른쪽 칸의 사실이 하나도 없으면 그 카드는 <b>회색 '알 수 없다'</b>로 남고, 초록불로 바뀌지 않는다.
+  <p class="note">위 표가 말하는 사실이 하나도 없으면 그 카드는 <b>회색 '알 수 없다'</b>로 남고, 초록불로 바뀌지 않는다.
     아무도 안 적은 것을 "괜찮다"고 말하면 읽는 사람이 모르는 상태를 안전한 상태로 착각하기 때문이다.
     회색이 보이면 다음 절처럼 말하면 된다.</p>
 </section>
@@ -1316,13 +1398,17 @@ GMYxjGMYxjGMYxjGMYWjMHQP/wDvb//Z
 <section>
   <h2><i>06</i> 이럴 때는 이렇게 말한다</h2>
   <p>쓰다 보면 판을 손봐야 할 때가 온다. 전부 말로 해결되고, 어느 파일을 고쳐야 하는지 알 필요가 없다.</p>
-  <table>
+  <table class="t2">
+    <thead>
     <tr><th>이런 일이 생기면</th><th>이렇게 말한다</th></tr>
+    </thead>
+    <tbody>
     <tr><td>카드가 회색 '알 수 없다'로 나온다</td><td>"알림 구획이 며칠째 멈췄는지도 같이 넣어줘"</td></tr>
     <tr><td>팀이 늘었다</td><td>"데이터팀 추가해줘"</td></tr>
     <tr><td>지켜볼 것이 바뀌었다</td><td>"리뷰만 기다리는 일이 쌓이는 것도 카드로 넣어줘"</td></tr>
     <tr><td>2주 스프린트라 경고가 늦게 켜진다</td><td>"우리는 2주 단위니까 늦음 기준을 줄여줘"</td></tr>
     <tr><td>보드에 엉뚱한 게 담긴 것 같다</td><td>"이 카드가 무슨 사실을 보고 만든 건지 알려줘"</td></tr>
+    </tbody>
   </table>
   <p class="note">잘못 말해도 망가지지 않는다. 값이 어긋나면 엔진은 <b>아무것도 만들지 않고</b> 어디가 어떻게 틀렸는지와
     대신 쓸 수 있는 값을 알려 준다. 그래서 틀린 보드가 조용히 나오는 일은 없다.</p>
