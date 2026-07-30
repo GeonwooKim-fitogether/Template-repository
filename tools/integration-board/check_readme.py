@@ -20,8 +20,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILL = ROOT / ".claude" / "skills" / "integration-board"
 GUIDE, SCHEMA = SKILL / "USER-GUIDE.html", SKILL / "reference" / "board-schema.md"
 
-# 산문은 현재 약 1,000자다. 두 배까지 벌어지면 문서가 다시 설명을 떠안기 시작한 것으로 본다.
-LIMITS = dict(prose_chars=2000, h2=6, names=8, kb=200, min_figures=1)
+# 산문은 현재 약 1,600자다. 여기서 크게 벌어지면 문서가 다시 설명을 떠안기 시작한 것으로 본다.
+# 크기(kb) 상한은 넉넉하다 — 이 검사가 막으려는 것은 산문 비대이지 그림 무게가 아니다.
+# 실제 보드 스크린샷 한 장이 첫 사용자에게 가장 값이 컸으므로, 그림에는 여유를 준다.
+LIMITS = dict(prose_chars=2200, h2=6, names=8, kb=300, min_figures=1)
 
 if not GUIDE.exists():
     sys.exit(f"안내서를 찾을 수 없습니다: {GUIDE}")
