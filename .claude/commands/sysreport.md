@@ -56,7 +56,7 @@ argument-hint: [선택 — 특정 파트만(change/home/quality/specification/pr
     --out    integration-board.html
   ```
 
-  스키마와 지표 목록은 [`.claude/skills/integration-board/reference/board-schema.md`](../skills/integration-board/reference/board-schema.md)에 있다. 이렇게 하는 이유는 세 가지다. 첫째, 판이 매번 같아 총괄이 매번 새로 해석하지 않아도 된다. 둘째, 판정·건수·롤업을 엔진이 계산하므로 숫자를 손으로 옮겨 적다 틀릴 일이 없다. 셋째, data 스키마에 자유 서술 필드가 없어 보고서가 산문으로 불어나지 않는다.
+  이 현황판을 처음 쓴다면 사람용 [사용 안내서](../skills/integration-board/USER-GUIDE.html)를 브라우저로 먼저 열어 보라. 항목 하나하나의 규격과 지표 목록은 [`.claude/skills/integration-board/reference/board-schema.md`](../skills/integration-board/reference/board-schema.md)에 있다. 이렇게 하는 이유는 세 가지다. 첫째, 판이 매번 같아 총괄이 매번 새로 해석하지 않아도 된다. 둘째, 판정·건수·롤업을 엔진이 계산하므로 숫자를 손으로 옮겨 적다 틀릴 일이 없다. 셋째, data 스키마에 자유 서술 필드가 없어 보고서가 산문으로 불어나지 않는다.
 
   **네가 채우는 것은 사실뿐이다** — 작업 목록·상태·날짜·검사 위반. 판정("위험"), 건수("결정 필요 2건"), 요약문을 data에 적으려 하면 엔진이 거부한다. 그것들은 도출값이다. 프로젝트에 `.integration/board.config.json`이 아직 없으면 스킬의 `assets/board.config.example.json`을 복사해 그 프로젝트 어휘로 채운 뒤 시작한다.
 
