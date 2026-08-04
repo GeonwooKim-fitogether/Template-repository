@@ -105,6 +105,10 @@ TEXT = {
     "verdictKicker": "종합 판정", "decideCount": "결정 필요",
     "decideHint": "사람이 정해 주기 전에는 진행할 수 없는 것", "decideBadge": "결정 필요",
     "verdictNoData": "자동 검사 {unknown}개는 실행 결과가 보고되지 않았다 — 그만큼 이 판정은 덜 안다",
+    # 판정 사유 — 무엇이 이 판정을 몰고 갔는지 이름을 대는 문장.
+    "verdictWhyRisk": "‘{title}’이(가) 막고 있다{more} — {reading}. 해소 전에는 본선 반영을 멈춘다",
+    "verdictWhyWarn": "‘{title}’이(가) 걸려 있다{more} — {reading}. 막지는 않지만 결정이 밀려 있다",
+    "verdictWhyMore": " (그 외 {rest}건)",
     "countUnit": "건", "laneOk": "이상 없음",
     "laneMore": "그 외 {n}건 펼치기", "laneLess": "접기",
     "meanLabel": "뜻", "whyLabel": "걸리면",
@@ -152,6 +156,9 @@ PLACEHOLDERS = {
     "axisOffBefore": {"n"}, "axisOffAfter": {"n"},
     "assetBadgeConflict": {"n", "all"}, "assetBadgeWaiting": {"n", "all"},
     "verdictNoData": {"unknown"}, "fixSome": {"n"},
+    "verdictWhyRisk": {"title", "more", "reading"},
+    "verdictWhyWarn": {"title", "more", "reading"},
+    "verdictWhyMore": {"rest"},
 }
 
 # ── 도출 문장 — **엔진이 고정한다. config로 바꿀 수 없다.** ────────────────
@@ -197,10 +204,13 @@ DEFAULT_BANDS = {
 }
 
 DEFAULT_VERDICTS = {
+    # 위험·주의의 이유는 판정을 몰고 간 카드에서 지어내므로(compose 부분 참고) 아래 문장은
+    # 몰고 간 카드를 찾지 못한 예외적인 경우에만 쓰인다. 그래서 원인을 특정하지 않는다.
     "risk": {"word": "위험", "tone": "red",
-             "why": "공용 자산 충돌이 풀리지 않았다 — 해소 전에는 본선 반영을 멈춘다"},
+             "why": "막는 것이 있다 — 해소 전에는 본선 반영을 멈춘다"},
     "warn": {"word": "주의", "tone": "amber", "why": "막는 것은 없지만 결정이 밀려 있다"},
-    "ok":   {"word": "정상", "tone": "green", "why": "충돌 없음 — 순서대로 본선에 반영할 수 있다"},
+    "ok":   {"word": "정상", "tone": "green",
+             "why": "막는 것도 걸린 것도 없다 — 순서대로 본선에 반영할 수 있다"},
 }
 
 DEFAULT_AXIS = {"leadDays": 14, "days": 84, "tickDays": 7}
@@ -419,7 +429,12 @@ def validate_config(v, cfg):
                         bands[name][k] = val
 
     # 종합 판정의 말(위험/주의/정상)과 그 이유. 색(tone)은 의미색이라 엔진이 고정한다.
+    #
+    # 이유(why)는 기본값을 쓰지 않고 **판정을 몰고 간 카드에서 지어낸다**(compose_verdict_why).
+    # 프로젝트가 config에 why를 직접 적었다면 그 문장이 이긴다. 어느 쪽인지 구분해야 하므로
+    # 직접 적은 판정 이름을 따로 모아 둔다.
     verdicts = dict((k, dict(v0)) for k, v0 in DEFAULT_VERDICTS.items())
+    why_fixed = set()
     if "verdicts" in cfg and v.obj("config.verdicts", cfg["verdicts"],
                                    optional=tuple(DEFAULT_VERDICTS)):
         for name, spec in cfg["verdicts"].items():
@@ -429,6 +444,8 @@ def validate_config(v, cfg):
                 for k, val in spec.items():
                     if v.text(f"config.verdicts.{name}.{k}", val, allow_empty=(k == "why")):
                         verdicts[name][k] = val
+                        if k == "why":
+                            why_fixed.add(name)
 
     axis = dict(DEFAULT_AXIS)
     if "axis" in cfg and v.obj("config.axis", cfg["axis"], optional=tuple(DEFAULT_AXIS)):
@@ -532,7 +549,7 @@ def validate_config(v, cfg):
             _validate_metric(v, f"{p}.metric", card.get("metric"),
                              assets, checks, areas, statuses, drift)
 
-    return {"board": board, "bands": bands, "verdicts": verdicts,
+    return {"board": board, "bands": bands, "verdicts": verdicts, "whyFixed": why_fixed,
             "axis": axis, "thresholds": thresholds, "text": text, "lanes": lanes,
             "areas": areas, "statuses": statuses, "assets": assets, "checks": checks,
             "teams": teams, "cards": cards, "drift": drift, "honesty": cfg.get("honesty", ""),
@@ -1004,6 +1021,27 @@ def compute(C, D):
     vkey = "risk" if has_risk else "warn" if has_warn else "ok"
     verdict = dict(C["verdicts"][vkey])
     verdict["tone"] = TONES[DEFAULT_VERDICTS[vkey]["tone"]]
+
+    # 판정 사유는 원인을 이름으로 댄다.
+    #
+    # 예전에는 위험이면 언제나 "공용 자산 충돌이 풀리지 않았다"라고 적었다. 원인이 멈춤이든
+    # 지연이든 검사 위반이든 같은 문장이 나오므로, 화면에서 사람이 가장 먼저 읽는 줄이
+    # 사실과 어긋날 수 있었다. 이제 판정을 몰고 간 카드를 찾아 그 카드의 제목과 읽는 문장으로
+    # 사유를 짓는다. 원인이 여러 개면 가장 급한 하나를 대고 나머지는 건수로 덧붙인다
+    # (카드는 이미 심각도 순으로 정렬돼 있으므로 앞의 것이 가장 급하다).
+    #
+    # 프로젝트가 config.verdicts.<key>.why를 직접 적었으면 그 문장을 그대로 둔다.
+    if vkey in ("risk", "warn") and vkey not in C["whyFixed"]:
+        drivers = [cards[k] for k in C["cardOrder"] if cards[k]["severity"] == vkey]
+        if drivers:
+            head = drivers[0]
+            # reading은 {t, em} 조각의 배열이다. 사유는 강조 없는 한 줄이라 글자만 잇는다.
+            reading = "".join(seg.get("t", "") for seg in head["reading"]).strip()
+            rest = len(drivers) - 1
+            verdict["why"] = _sub(T["verdictWhyRisk" if vkey == "risk" else "verdictWhyWarn"], {
+                "title": head["title"],
+                "more": _sub(T["verdictWhyMore"], {"rest": rest}) if rest else "",
+                "reading": reading})
     # 초록 램프가 "다 확인했다"로 읽히지 않게, 모르는 만큼을 램프 옆에 같이 적는다.
     verdict["noData"] = _sub(T["verdictNoData"], {"unknown": unknown_checks}) \
         if unknown_checks else ""
