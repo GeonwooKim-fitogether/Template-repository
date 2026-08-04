@@ -38,10 +38,28 @@
 //   진척: 40%                          (Progress: 도 받는다)
 //   해소: 척추가드, 문서매트릭스        (Fixes-check: 도 받는다 — config.checks 의 key)
 //
+// ── 사람이 선언한 사실을 얹는 층 (board.manual.json) ─────────────────────────
+// GitHub 에 아예 없는 사실이 있다. PR 을 아직 열지 않은 **브랜치 작업**, 사람이 감사로
+// 판정한 **위반**(척추 규칙 위반·행 수준 보안 같은 것 — 이런 것은 CI 가 실패로 알려 주지
+// 않는다), 그리고 기계가 모르는 **검사 결과**다. 이것을 못 담으면 자동 수집으로 바꾼 순간
+// 그 사실들이 보드에서 사라지고, 사라진 만큼 판정이 좋아 보인다. **거짓 초록불**이다.
+//
+// 그래서 `.integration/board.manual.json` 이 있으면 수집한 사실 위에 얹는다.
+// 모양은 board.json 과 같고 일부만 적으면 된다.
+//
+//   { "works": [...], "violations": [...], "checkRuns": {...}, "drift": {...} }
+//
+//   · works      — id 가 수집된 PR 과 같으면 **적은 항목만 덮어쓴다**(예: 계획일·진척률을
+//                  PR 본문 대신 여기서 주기). 없는 id 면 새 작업으로 더한다.
+//   · violations — 수집된 것에 **더한다**(같은 것은 한 번만).
+//   · checkRuns  — 사람이 적은 쪽이 이긴다. 기계가 보지 못하는 검사를 여기서 채운다.
+//   · drift      — 기계가 셀 수 없는 값이라 여기서만 온다.
+//
 // ── 실행 ─────────────────────────────────────────────────────────────────────
 //   node .claude/workflows/board-collect.mjs                     (GitHub 에서 수집)
 //   node .claude/workflows/board-collect.mjs --fixture f.json    (녹여 둔 응답으로 수집)
 //   옵션: --out <경로>(기본 .integration/board.json) --config <경로> --map <경로>
+//         --manual <경로>(기본 .integration/board.manual.json — 없으면 그냥 건너뛴다)
 //
 // 환경변수: GITHUB_TOKEN, GITHUB_REPOSITORY(=owner/repo). Actions 가 둘 다 준다.
 // 준비물 없음 — Node 18+ 의 fetch 만 쓴다.
@@ -59,6 +77,7 @@ const opt = (name, dflt) => {
 const CONFIG_PATH = opt("--config", ".integration/board.config.json");
 const MAP_PATH = opt("--map", ".integration/board.map.json");
 const OUT_PATH = opt("--out", ".integration/board.json");
+const MANUAL_PATH = opt("--manual", ".integration/board.manual.json");
 const FIXTURE = opt("--fixture", null);
 
 const DAY = 86400000;
@@ -69,7 +88,9 @@ const MAP_DEFAULTS = {
   timezone: "Asia/Seoul",   // '오늘'을 어느 시간대로 볼지. 팀이 있는 곳 기준이 맞다.
   recentMergedDays: 14,     // 며칠 안에 머지된 것까지 보드에 남길지
   statusOf: {},             // {draft|open|merged: config.statuses 의 key}
+  workIdPrefix: "PR-",      // 작업 id 접두어. 저장소의 기존 표기(예: 'pr-')를 따를 수 있다.
   teamByAuthor: {},
+  teamByArea: {},           // {영역 key: 팀}. 팀이 사람이 아니라 '파트'인 저장소를 위한 것.
   teamDefault: null,
   areaByPath: [],           // [[glob, area], ...] 위에서부터 처음 맞는 것
   areaDefault: null,
@@ -196,6 +217,7 @@ async function main() {
   for (const [k, v] of Object.entries(map.statusOf))
     if (!statusKeys.has(v)) bad.push(`statusOf.${k} → 없는 상태 '${v}'`);
   for (const [, v] of map.areaByPath) if (!areaKeys.has(v)) bad.push(`areaByPath → 없는 영역 '${v}'`);
+  for (const k of Object.keys(map.teamByArea)) if (!areaKeys.has(k)) bad.push(`teamByArea 의 열쇠 '${k}' 는 없는 영역입니다`);
   if (map.areaDefault && !areaKeys.has(map.areaDefault)) bad.push(`areaDefault → 없는 영역 '${map.areaDefault}'`);
   for (const [, v] of map.assetByPath) if (!assetKeys.has(v)) bad.push(`assetByPath → 없는 자산 '${v}'`);
   for (const [k, v] of Object.entries(map.checkByRun))
@@ -203,6 +225,9 @@ async function main() {
   if (teamRoster) {
     for (const [k, v] of Object.entries(map.teamByAuthor))
       if (!teamRoster.includes(v)) bad.push(`teamByAuthor['${k}'] → 명부에 없는 팀 '${v}'`);
+    for (const [k, v] of Object.entries(map.teamByArea)) {
+      if (!teamRoster.includes(v)) bad.push(`teamByArea['${k}'] → 명부에 없는 팀 '${v}'`);
+    }
     if (map.teamDefault && !teamRoster.includes(map.teamDefault))
       bad.push(`teamDefault → 명부에 없는 팀 '${map.teamDefault}'`);
   }
@@ -238,8 +263,11 @@ async function main() {
     const area = (map.areaByPath.find(([g]) => files.some(f => matches(g, f))) || [])[1];
     if (!area) notes.unmappedPaths++;
     const author = (pr.user && pr.user.login) || "";
-    const team = map.teamByAuthor[author];
-    if (!team && author) notes.unmappedAuthors.add(author);
+    const areaKey = area || map.areaDefault;
+    // 팀은 세 단계로 정한다. 작성자 대응이 먼저이고, 없으면 영역 대응(팀이 사람이 아니라
+    // '파트'인 저장소에서는 이쪽이 맞다), 그것도 없으면 기본값이다.
+    const team = map.teamByAuthor[author] || map.teamByArea[areaKey];
+    if (!map.teamByAuthor[author] && !map.teamByArea[areaKey] && author) notes.unmappedAuthors.add(author);
 
     const touches = [...new Set(
       map.assetByPath.filter(([g]) => files.some(f => matches(g, f))).map(([, a]) => a))];
@@ -250,9 +278,9 @@ async function main() {
       : pr.draft ? map.statusOf.draft : map.statusOf.open;
 
     const w = {
-      id: `PR-${n}`,
+      id: `${map.workIdPrefix}${n}`,
       title: pr.title,
-      area: area || map.areaDefault,
+      area: areaKey,
       team: team || map.teamDefault,
       status,
     };
@@ -314,6 +342,7 @@ async function main() {
     return null;
   };
 
+  let manualDrift = null;
   const FAIL = new Set(["failure", "timed_out", "action_required", "startup_failure"]);
   const checkRuns = {};
   const violations = [];
@@ -347,8 +376,48 @@ async function main() {
       if (run.status !== "completed" || !FAIL.has(run.conclusion)) continue;
       const key = keyOfRun(run);
       if (!key) continue;
-      addViolation(key, `PR-${n}`, map.severityByCheck[key] || map.prSeverity);
+      addViolation(key, `${map.workIdPrefix}${n}`, map.severityByCheck[key] || map.prSeverity);
     }
+  }
+
+  // ── 사람이 선언한 사실을 얹는다 ────────────────────────────────────────────
+  // 기계가 볼 수 없는 것(PR 없는 브랜치 작업, 감사로 판정한 위반, 기계가 모르는 검사)을
+  // 여기서 받는다. 이 층이 없으면 자동 수집으로 바꾼 순간 그 사실들이 조용히 사라지고,
+  // 사라진 만큼 판정이 좋아 보인다.
+  let manualNote = null;
+  if (existsSync(MANUAL_PATH)) {
+    const man = loadJson(MANUAL_PATH, "사람이 선언한 사실");
+    // `_`로 시작하는 열쇠는 주석으로 본다 — 이 저장소의 설정 파일들이 쓰는 관례이고,
+    // 사람이 손으로 채우는 파일일수록 "이 칸이 무엇인지"를 파일 안에 적어 둘 자리가 필요하다.
+    const allowed = new Set(["works", "violations", "checkRuns", "drift"]);
+    const extra = Object.keys(man).filter(k => !allowed.has(k) && !k.startsWith("_"));
+    if (extra.length) die(`${MANUAL_PATH} 에 얹을 수 없는 항목이 있습니다: ${extra.join(", ")}\n`
+      + `  얹을 수 있는 것: works · violations · checkRuns · drift`);
+
+    const byId = new Map(works.map(w => [w.id, w]));
+    let over = 0, added = 0;
+    for (const mw of man.works || []) {
+      if (!mw || typeof mw.id !== "string") die(`${MANUAL_PATH} 의 works 항목에 id 가 없습니다`);
+      const cur = byId.get(mw.id);
+      if (cur) { Object.assign(cur, mw); over++; }   // 적은 항목만 덮어쓴다
+      else { works.push(mw); byId.set(mw.id, mw); added++; }
+    }
+    // 사람이 적은 위반은 **중복 제거 없이 그대로** 싣는다.
+    //
+    // 기계가 모은 위반에는 중복 제거가 맞다(같은 검사가 여러 실행에서 같은 실패를 보고한다).
+    // 그런데 사람이 감사로 찾은 발견은 검사·지목·무게가 똑같아도 **서로 다른 건**이다.
+    // 실제로 이 저장소에는 척추 가드 위반이 셋(막힘 둘·주의 하나), 행 수준 보안이 둘 있었는데,
+    // 중복 제거를 걸었더니 셋이 둘로, 둘이 하나로 줄었다. 보드가 문제를 실제보다 작게
+    // 말하게 되므로 — 이 도구가 없애려는 바로 그 방향이므로 — 얹는 층에서는 걸지 않는다.
+    for (const mv of man.violations || []) {
+      const v = { check: mv.check, severity: mv.severity };
+      if (mv.ref) v.ref = mv.ref;
+      violations.push(v);
+    }
+    for (const [k, v] of Object.entries(man.checkRuns || {})) checkRuns[k] = v;  // 사람이 이긴다
+    if (man.drift) manualDrift = man.drift;
+    manualNote = `사람이 선언한 사실을 얹었습니다 — 작업 추가 ${added}건 · 기존 작업 보강 ${over}건`
+      + ` · 위반 ${(man.violations || []).length}건 · 검사 결과 ${Object.keys(man.checkRuns || {}).length}개`;
   }
 
   // 걸린 것이 있는 검사는 '통과'로 보고할 수 없다.
@@ -371,6 +440,7 @@ async function main() {
   };
   if (violations.length) data.violations = violations;
   if (Object.keys(checkRuns).length) data.checkRuns = checkRuns;
+  if (manualDrift) data.drift = manualDrift;
 
   mkdirSync(dirname(OUT_PATH), { recursive: true });
   writeFileSync(OUT_PATH, JSON.stringify(data, null, 2) + "\n", "utf8");
@@ -379,6 +449,7 @@ async function main() {
   console.log(`board.json 을 썼습니다 → ${OUT_PATH}`);
   console.log(`  작업 ${works.length}건(열림 ${open.length} · 최근 머지 ${merged.length})`
     + ` · 위반 ${violations.length}건 · 검사 결과 ${Object.keys(checkRuns).length}개`);
+  if (manualNote) console.log("  " + manualNote);
   const say = [];
   if (notes.noPlan) say.push(`계획일 미선언 ${notes.noPlan}건 → 간트의 '일정 미정' 그룹으로 갑니다`);
   if (notes.unmappedPaths) say.push(`경로 대응 없음 ${notes.unmappedPaths}건 → areaDefault('${map.areaDefault}')로 두었습니다`);

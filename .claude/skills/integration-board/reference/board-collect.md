@@ -19,7 +19,7 @@
 | 실제 완료일 | 머지 시각 |
 | 건드린 공용 자산 | 변경 파일 경로 → `assetByPath` |
 | 제품 영역 | 변경 파일 경로 → `areaByPath` |
-| 팀 | PR 작성자 → `teamByAuthor` |
+| 팀 | PR 작성자 → `teamByAuthor`, 없으면 제품 영역 → `teamByArea` |
 | 검사가 이번 회차에 돌았나 | main 최신 커밋의 체크 실행 결과 |
 | 위반 목록 | 실패한 체크 (main은 지목 없는 위반, PR은 그 PR을 지목) |
 | **계획 시작·종료일** | **PR 본문 선언** (없으면 열린 PR은 "일정 미정"으로 남는다) |
@@ -40,6 +40,41 @@ PR 본문 어디든 아래 형태로 한 줄 적으면 그 값이 보드에 올�
 
 `해소:`에 적는 값은 **config의 `checks` key**다. 없는 key를 적으면 수집기가 그 자리에서 멈추고 쓸 수 있는 key 목록을 보여 준다. 조용히 무시하면 사람은 선언한 줄 알고 있는데 보드는 여전히 "미보고"로 남기 때문이다.
 
+### 1-2. 기계가 아예 볼 수 없는 것 — `board.manual.json`
+
+위 표의 셋(계획일·진척률·해소 작업)은 PR 본문으로 채울 수 있다. 그런데 **GitHub에 아예 없는 사실**이 따로 있다.
+
+1. **PR을 아직 열지 않은 브랜치 작업.** 수집기는 PR만 본다. 브랜치에서 진행 중인 일은 보이지 않는다.
+2. **사람이 감사로 판정한 위반.** 척추 규칙 위반이나 행 수준 보안처럼 **CI가 실패로 알려 주지 않는** 것이다. 사람이 코드와 데이터베이스를 들여다봐야 나온다.
+3. **기계가 보지 못하는 검사의 결과.** 위와 같은 이유로 실행 결과가 GitHub에 없다.
+
+이것을 담을 자리가 없으면 자동 수집으로 바꾼 순간 그 사실들이 보드에서 사라지고, **사라진 만큼 판정이 좋아 보인다.** 자동화가 만드는 가장 위험한 실패가 이 형태다. 그래서 `.integration/board.manual.json`이 있으면 수집한 사실 **위에 얹는다.** 모양은 `board.json`과 같고 필요한 부분만 적는다.
+
+```json
+{
+  "works": [
+    { "id": "br-odp11", "title": "부품 스펙 양식 W1·W2 시드", "area": "specification",
+      "team": "specification팀", "status": "review",
+      "planStart": "2026-07-28", "planEnd": "2026-08-08", "progress": 95, "stalledDays": 0 }
+  ],
+  "violations": [ { "check": "spine_guard", "severity": "block" } ],
+  "checkRuns": { "spine_guard": "fail" }
+}
+```
+
+| 칸 | 얹는 방식 |
+|---|---|
+| `works` | id가 수집된 PR과 같으면 **적은 항목만 덮어쓴다**(계획일·진척률을 PR 본문 대신 여기서 줄 수 있다). 없는 id면 새 작업으로 더한다 |
+| `violations` | 수집된 것에 **더한다. 중복 제거를 걸지 않는다** — 아래 이유 참조 |
+| `checkRuns` | **사람이 적은 쪽이 이긴다.** 기계가 보지 못하는 검사를 여기서 채운다 |
+| `drift` | 기계가 셀 수 없는 값이라 여기서만 온다 |
+
+`_`로 시작하는 열쇠는 주석으로 무시하므로, 각 칸이 무엇인지 파일 안에 적어 둘 수 있다.
+
+**사람이 적은 위반에 중복 제거를 걸지 않는 이유.** 기계가 모은 위반에는 중복 제거가 맞다 — 같은 검사가 여러 실행에서 같은 실패를 보고한다. 그런데 사람이 감사로 찾은 발견은 **검사·지목·무게가 똑같아도 서로 다른 건**이다. 실제로 어떤 저장소에는 척추 가드 위반이 셋(막힘 둘·주의 하나), 행 수준 보안이 둘 있었는데, 중복 제거를 걸었더니 셋이 둘로 줄고 둘이 하나로 줄었다. 보드가 문제를 실제보다 작게 말하게 되므로 얹는 층에서는 걸지 않는다.
+
+**고친 항목은 이 파일에서 지운다.** 지우지 않으면 해소된 뒤에도 보드에 남는다. 그래서 `checkRuns`에는 **CI가 판정하는 검사를 적지 않는 편이 좋다** — 적어 두면 CI가 초록으로 바뀐 뒤에도 사람이 지울 때까지 붉게 남는다.
+
 ---
 
 ## 2. 켜는 법 — 세 단계
@@ -48,6 +83,7 @@ PR 본문 어디든 아래 형태로 한 줄 적으면 그 값이 보드에 올�
 
 - `.integration/board.config.json` — 프로젝트의 어휘(팀·영역·자산·검사·카드). 규격은 `board-schema.md` 1절.
 - `.integration/board.map.json` — GitHub의 사실을 그 어휘로 옮기는 대응표(3절). `assets/board.map.example.json`을 복사해 시작한다.
+- `.integration/board.manual.json`(선택) — 기계가 볼 수 없는 사실(1-2절). 브랜치 작업이나 사람이 판정한 위반이 있으면 만든다.
 
 `.integration/board.json`(회차 사실)은 **저장소에 두지 않는다.** 사건마다 수집기가 새로 쓰므로, 커밋해 두면 옛 사실과 방금 모은 사실 두 벌이 생기고 화면만 보고는 어느 쪽이 지금인지 알 수 없다.
 
@@ -69,8 +105,10 @@ PR 본문 어디든 아래 형태로 한 줄 적으면 그 값이 보드에 올�
 {
   "timezone": "Asia/Seoul",
   "recentMergedDays": 14,
+  "workIdPrefix": "PR-",
   "statusOf": { "draft": "doing", "open": "review", "merged": "shipped" },
   "teamByAuthor": { "github-login": "팀 B" },
+  "teamByArea": { "change": "change팀" },
   "teamDefault": "팀 B",
   "areaByPath": [ ["app/src/components/change/**", "change"], ["docs/**", "docs"] ],
   "areaDefault": "docs",
@@ -86,8 +124,10 @@ PR 본문 어디든 아래 형태로 한 줄 적으면 그 값이 보드에 올�
 |---|---|---|
 | `timezone` | | '오늘'을 어느 시간대로 볼지. 기본 `Asia/Seoul`. 팀이 있는 곳 기준이 맞다 |
 | `recentMergedDays` | | 며칠 안에 머지된 것까지 보드에 남길지. 기본 14 |
+| `workIdPrefix` | | 작업 id의 접두어. 기본 `PR-`이라 PR 42는 `PR-42`가 된다. 저장소가 `pr-42`처럼 써 왔다면 그 표기를 넣는다 — **`board.manual.json`의 위반이 가리키는 id와 표기가 맞아야 한다** |
 | `statusOf` | **필수** | PR의 세 상태(`draft` · `open` · `merged`)를 각각 config의 어느 상태 열에 놓을지 |
 | `teamByAuthor` | | GitHub 로그인 → 팀. `config.teams` 명부를 선언했다면 그 안의 이름이어야 한다 |
+| `teamByArea` | | 제품 영역 → 팀. **팀이 사람이 아니라 '파트'인 저장소를 위한 것이다.** 작성자가 한 명이거나 여러 파트를 겸하면 작성자로는 팀을 가를 수 없다. 순서는 `teamByAuthor` → `teamByArea` → `teamDefault` |
 | `teamDefault` | **필수** | 대응표에 없는 작성자를 어느 팀으로 볼지 |
 | `areaByPath` | | `[[경로 glob, 영역 key], …]`. **위에서부터 처음 맞는 것** 하나가 그 PR의 영역이 된다 |
 | `areaDefault` | **필수** | 어느 규칙에도 걸리지 않는 PR의 영역 |

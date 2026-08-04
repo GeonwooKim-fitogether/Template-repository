@@ -4,11 +4,17 @@
   "timezone": "Asia/Seoul",
   "recentMergedDays": 14,
 
+  "_workIdPrefix": "작업 id 의 접두어. PR 42 가 'PR-42' 가 됩니다. 저장소가 'pr-42' 처럼 써 왔다면 그 표기를 넣으십시오.",
+  "workIdPrefix": "PR-",
+
   "_statusOf": "PR의 세 상태를 config.statuses 의 어느 열에 놓을지. 셋 다 필요합니다.",
   "statusOf": { "draft": "doing", "open": "review", "merged": "shipped" },
 
   "_teamByAuthor": "GitHub 로그인 → 팀. config.teams 명부를 선언했다면 그 안의 이름이어야 합니다.",
   "teamByAuthor": { "octocat": "팀 A" },
+
+  "_teamByArea": "팀이 사람이 아니라 '파트'인 저장소를 위한 것입니다. 작성자 대응이 없을 때 제품 영역으로 팀을 정합니다.",
+  "teamByArea": {},
   "teamDefault": "팀 A",
 
   "_areaByPath": "[경로 glob, 영역 key] 목록. 위에서부터 처음 맞는 것 하나가 그 PR의 영역이 됩니다.",

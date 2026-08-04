@@ -25,6 +25,7 @@ COLLECT = os.path.join(ROOT, ".claude", "workflows", "board-collect.mjs")
 ENGINE = os.path.join(ROOT, ".claude", "skills", "integration-board", "assets",
                       "integration_board_engine.py")
 FIXTURE = os.path.join(HERE, "board-collect.fixture.json")
+MANUAL = os.path.join(HERE, "board-collect.manual-fixture.json")
 CONFIG = os.path.join(ROOT, ".integration", "board.config.json")
 MAP = os.path.join(ROOT, ".integration", "board.map.json")
 
@@ -97,7 +98,42 @@ def main():
     check("대응표에 없는 체크는 싣지 않는다",
           all(k in {"prgate", "registry", "readme", "sync", "overlap"} for k in runs), runs)
 
-    print("\nE. 엔진이 이 board.json 을 받아 보드를 그리는가")
+    print("\nE. 사람이 선언한 사실을 얹는가 (board.manual.json)")
+    # 이 층이 없으면 자동 수집으로 바꾼 순간 기계가 볼 수 없는 사실이 사라지고,
+    # 사라진 만큼 판정이 좋아 보인다. 그 '거짓 초록불'을 막는 것이 이 절의 목적이다.
+    out2 = os.path.join(tmp, "board-manual.json")
+    r3 = subprocess.run([
+        "node", COLLECT, "--fixture", FIXTURE, "--config", CONFIG, "--map", MAP,
+        "--manual", MANUAL, "--out", out2,
+    ], capture_output=True, text=True)
+    check("얹은 채로도 수집기가 성공으로 끝난다", r3.returncode == 0, r3.stderr or r3.stdout)
+    if r3.returncode == 0:
+        d2 = json.load(open(out2, encoding="utf-8"))
+        br = work(d2, "br-only-branch")
+        check("PR 이 없는 브랜치 작업이 목록에 더해진다", br is not None, [w["id"] for w in d2["works"]])
+        check("그 작업의 멈춘 기간이 그대로 실린다", br and br.get("stalledDays") == 19, br)
+        check("이미 수집된 PR 은 적은 항목만 덮어쓴다 (제목·상태는 유지)",
+              work(d2, "PR-50")["progress"] == 55
+              and work(d2, "PR-50")["status"] == "review"
+              and "판정 사유" in work(d2, "PR-50")["title"], work(d2, "PR-50"))
+        check("PR 본문 선언은 얹지 않은 항목에 그대로 남는다",
+              work(d2, "PR-50").get("fixes") == ["prgate"], work(d2, "PR-50"))
+        vios2 = d2.get("violations", [])
+        check("사람이 판정한 위반이 더해진다 (CI 가 알려 주지 않는 것)",
+              any(v["check"] == "overlap" and v["severity"] == "block" for v in vios2), vios2)
+        check("검사·무게가 같은 사람 발견 두 건이 하나로 줄지 않는다",
+              sum(1 for v in vios2 if v["check"] == "overlap") == 2,
+              [v for v in vios2 if v["check"] == "overlap"])
+        check("기계가 모은 위반도 그대로 남는다",
+              any(v["check"] == "sync" for v in vios2) and any(v["check"] == "registry" for v in vios2), vios2)
+        check("얹은 뒤에도 통과와 위반이 어긋나지 않는다",
+              all(d2["checkRuns"].get(v["check"]) != "pass" for v in vios2), d2["checkRuns"])
+        r4 = subprocess.run([sys.executable, ENGINE, "--config", CONFIG, "--data", out2,
+                             "--out", os.path.join(tmp, "board-manual.html")],
+                            capture_output=True, text=True)
+        check("얹은 결과도 엔진 검증을 통과한다", r4.returncode == 0, r4.stdout + r4.stderr)
+
+    print("\nF. 엔진이 이 board.json 을 받아 보드를 그리는가")
     html = os.path.join(tmp, "board.html")
     r2 = subprocess.run([sys.executable, ENGINE, "--config", CONFIG, "--data", out, "--out", html],
                         capture_output=True, text=True)
