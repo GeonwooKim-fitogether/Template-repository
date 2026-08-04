@@ -14,6 +14,7 @@
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -359,6 +360,65 @@ def main():
     print(f"  {'통과' if good else '실패'}  사실을 적고 정상이면 초록 문장이 나온다")
     if not good:
         print("        " + out.strip()[:600])
+
+    # ── E절 · 판정 사유가 실제 원인을 이름으로 대는가 ──────────────────────
+    #
+    # 예전에는 위험이면 원인과 무관하게 "공용 자산 충돌이 풀리지 않았다"가 나왔다.
+    # 화면에서 사람이 가장 먼저 읽는 줄이 거짓을 말할 수 있었으므로, 판정을 몰고 간
+    # 카드의 제목과 읽는 문장이 사유에 들어가는지 확인한다.
+    def verdict_why(cfg, data):
+        rc, out, html = run_html(cfg, data)
+        if rc != 0:
+            return None, out
+        m = re.search(r'"verdict":\s*(\{.*?\}),\s*"decides"', html, re.S)
+        return (json.loads(m.group(1)) if m else None), out
+
+    def check(name, cond, detail=""):
+        nonlocal npass, nfail
+        npass += bool(cond)
+        nfail += not cond
+        print(f"  {'통과' if cond else '실패'}  {name}")
+        if not cond and detail:
+            print("        " + str(detail)[:400])
+
+    # E-1. 원인이 하나면 그 카드 이름과 읽는 문장이 사유에 들어간다.
+    data = copy.deepcopy(BASE_DATA)
+    v, out = verdict_why(copy.deepcopy(BASE_CFG), data)
+    if v is None:
+        check("판정 사유에 원인 카드가 들어간다", False, out)
+    else:
+        # 카드 제목을 그냥 부분 문자열로 찾으면 안 된다. 실제로 옛 문장
+        # "…해소 전에는 본선 반영을 멈춘다"가 카드 제목 '본선 반영'을 우연히 품고 있어
+        # 깨진 엔진에서도 통과해 버렸다. 그래서 엔진이 제목을 감쌀 때 쓰는 따옴표까지
+        # 함께 확인해, 우연한 부분 일치로는 통과할 수 없게 한다.
+        titles = [c["title"] for c in BASE_CFG["cards"]]
+        check("판정 사유가 원인 카드의 이름을 댄다",
+              any(t and f"‘{t}’" in v["why"] for t in titles), v["why"])
+        check("판정 사유에 옛 하드코딩 문장이 남지 않았다",
+              "공용 자산 충돌이 풀리지 않았다" not in v["why"], v["why"])
+
+    # E-2. 프로젝트가 사유를 직접 적었으면 엔진이 덮어쓰지 않는다.
+    cfg = copy.deepcopy(BASE_CFG)
+    cfg["verdicts"] = {"risk": {"why": "우리가 직접 적은 사유"},
+                       "warn": {"why": "우리가 직접 적은 사유"}}
+    v, out = verdict_why(cfg, copy.deepcopy(BASE_DATA))
+    check("config로 적은 판정 사유를 엔진이 존중한다",
+          v is not None and v["why"] == "우리가 직접 적은 사유", (v or out))
+
+    # E-3. 아무 문제가 없으면 정상 문장이 나오고, 원인을 지어내지 않는다.
+    data = copy.deepcopy(BASE_DATA)
+    for w in data["works"]:
+        w["stalledDays"] = 0
+        w.pop("block", None)
+        if w.get("planEnd"):
+            w["eta"] = w["planEnd"]
+        else:
+            w["planStart"], w["planEnd"] = "2026-07-01", "2026-07-20"
+            w["eta"] = "2026-07-20"
+    data["violations"] = []
+    data["checkRuns"] = {k: "pass" for k in data.get("checkRuns", {})}
+    v, out = verdict_why(copy.deepcopy(BASE_CFG), data)
+    check("전부 정상이면 정상 판정이 나온다", v is not None and v["word"] == "정상", (v or out))
 
     print(f"\n결과: 통과 {npass} · 실패 {nfail}")
     return 1 if nfail else 0
