@@ -65,6 +65,14 @@ CASES = [
      None, lambda d: d["violations"][0].__setitem__("check", "spinez"),
      "자동 검사 'spinez'를 찾을 수 없습니다"),
 
+    ("없는 자동 검사를 해소 작업이 참조",
+     None, lambda d: work(d, "PR122").__setitem__("fixes", "spinez"),
+     "자동 검사 'spinez'를 찾을 수 없습니다"),
+
+    ("배열로 준 fixes 안에 없는 검사",
+     None, lambda d: work(d, "PR122").__setitem__("fixes", ["spine", "ghostcheck"]),
+     "자동 검사 'ghostcheck'를 찾을 수 없습니다"),
+
     ("없는 작업을 선행 작업으로 지정",
      None, lambda d: work(d, "PR112").__setitem__("deps", ["PR000"]),
      "작업 'PR000'를 찾을 수 없습니다"),

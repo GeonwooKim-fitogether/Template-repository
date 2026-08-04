@@ -364,6 +364,15 @@ h1,h2,h3,h4,p,dl,dd,dt{margin:0}
 .chk-ok{font-size:var(--fs-sm);color:var(--muted);background:var(--card);border:1px solid var(--border);
   border-radius:var(--r-sm);padding:5px var(--sp-2);display:flex;align-items:center;gap:6px}
 .chk-ok.nd{background:var(--zebra);border-style:dashed;color:var(--dim)}
+/* 해소 작업 — 걸린 검사에만 붙는다. "없음"은 위반 자체보다 급한 사실이라
+   위반 카드들보다 위에 놓고 빨강으로 세운다. "미보고"는 회색 점선으로 남긴다
+   (아무도 안 적은 것을 없다고 말하지 않는다). */
+.chk-fx{font-size:var(--fs-xs);background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:4px var(--sp-2);display:flex;align-items:center;gap:6px;color:var(--muted)}
+.chk-fx.no{color:var(--red);border-color:var(--red-bd);font-weight:800}
+.chk-fx.nd{background:var(--zebra);border-style:dashed;color:var(--dim)}
+.chk-fx .fxid{font-family:var(--mono);font-size:var(--fs-micro);font-weight:700;color:var(--strong);
+  margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vio{background:var(--card);border:1px solid var(--red-bd);border-left:4px solid var(--red);
   border-radius:var(--r-sm);padding:5px var(--sp-2);display:flex;flex-direction:column;gap:3px}
 .vio.w{border-color:var(--amber-bd);border-left-color:var(--amber)}
@@ -765,12 +774,23 @@ function renderBand3(){
       : c.reported
         ? `<div class="chk-ok"><span class="dot" style="background:var(--green)"></span>${esc(T.okNone)}</div>`
         : `<div class="chk-ok nd"><span class="dot" style="background:var(--dim)"></span>${esc(T.noData)}</div>`;
+    /* 걸린 검사에는 "그럼 이걸 누가 고치고 있나"를 위반 위에 먼저 적는다.
+       해소 작업이 있으면 그 작업 id를 함께 보여 줘, 카드를 눌렀을 때 밴드 2에서
+       밝아지는 것이 무엇인지 눌러 보기 전에도 알 수 있게 한다. */
+    const fxDot = c.fixState === "none" ? "var(--red)"
+      : c.fixState === "some" ? "var(--green)" : "var(--dim)";
+    const fx = c.fixState
+      ? `<div class="chk-fx${c.fixState === "none" ? " no" : c.fixState === "unknown" ? " nd" : ""}">
+           <span class="dot" style="background:${fxDot}"></span>${esc(c.fixLabel)}
+           ${c.fixWork.length ? `<span class="fxid">${esc(c.fixWork.join(" · "))}</span>` : ""}
+         </div>`
+      : "";
     return `<div class="chk tg" data-st="${c.status}" data-tid="check:${esc(c.key)}">
       <div class="chk-hd"><span class="dot" style="background:var(--ct)"></span>
         <span class="cn">${esc(c.name)}</span></div>
       <span class="chk-st">${esc(c.statusLabel)}</span>
       ${cfgdl(c.plain, c.why)}
-      <div class="chk-body">${body}</div>
+      <div class="chk-body">${fx}${body}</div>
     </div>`;
   }).join("");
 
