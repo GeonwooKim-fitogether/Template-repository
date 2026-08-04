@@ -540,8 +540,22 @@
   <section>
     <div class="shead"><span class="snum">7</span><h2>갱신하는 법과, 더 볼 곳</h2></div>
     <div class="stack">
+      <div class="panel keyline">
+        <span class="kicker">자동 갱신이 켜져 있다면 — 갱신을 부탁할 일이 없다</span>
+        <p>
+          저장소에 자동 수집이 켜져 있으면 <strong>사건마다 보드가 스스로 다시 그려진다.</strong>
+          PR의 검사가 끝날 때, main에 무언가 머지될 때, 그리고 아무 일이 없어도 30분마다 한 번씩이다.
+          주소가 고정된 한 장이므로 <strong>그 링크를 열면 언제나 지금 상태</strong>이고,
+          화면 오른쪽 위 "갱신" 시각이 언제 기준인지 말해 준다.
+        </p>
+        <p style="margin-bottom:0">
+          다만 GitHub에 없는 사실은 자동으로 채워지지 않는다 — <strong>계획 시작·종료일, 진척률,
+          해소 작업</strong> 셋이다. 이 셋은 PR 본문에 한 줄로 선언하면 실리고, 선언하지 않으면
+          회색으로 남는다. 자동 수집도 모르는 것을 지어내지 않기 때문이다.
+        </p>
+      </div>
       <div class="say">
-        <span class="who">갱신</span>
+        <span class="who">자동 갱신이 없다면</span>
         <q>현황판 갱신해줘</q>
         <p style="margin:0.5rem 0 0;font-size:0.92rem;color:var(--muted)">
           한마디면 된다. 열린 PR과 최근 기록을 읽어 이번 회차의 사실만 갱신하고, 같은 판에 새 숫자가 올라간다.
