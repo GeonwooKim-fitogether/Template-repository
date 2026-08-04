@@ -137,6 +137,8 @@ TEXT = {
     "checkSkipped": "건너뜀", "checkNever": "실행된 적 없음", "checkUnknown": "정보 없음",
     "vioBlock": "막힘", "vioWarn": "주의", "vioNoTarget": "특정 작업 지정 없음",
     "okNone": "이상 없음", "noData": "실행 결과 보고 없음",
+    # 걸린 검사 옆에 "그럼 이걸 누가 고치고 있나"를 적는 자리.
+    "fixSome": "해소 작업 {n}건", "fixNone": "해소 작업 없음", "fixUnknown": "해소 작업 미보고",
     "traceChip": "연결 보기", "traceOff": "해제",
     # 분모가 '전체 팀 수'인지 '그 자산을 건드린 팀 수'인지를 문장이 스스로 말한다.
     # 말해 주지 않으면 팀 명부를 넣고 빼는 것만으로 같은 상황의 숫자가 달라져 보인다.
@@ -153,7 +155,7 @@ PLACEHOLDERS = {
     "areaCount": {"n"}, "areaCountUndated": {"n", "u"}, "undatedCount": {"n"},
     "axisOffBefore": {"n"}, "axisOffAfter": {"n"},
     "assetBadgeConflict": {"n", "all"}, "assetBadgeWaiting": {"n", "all"},
-    "verdictNoData": {"unknown"},
+    "verdictNoData": {"unknown"}, "fixSome": {"n"},
     "verdictWhyRisk": {"title", "more", "reading"},
     "verdictWhyWarn": {"title", "more", "reading"},
     "verdictWhyMore": {"rest"},
@@ -174,6 +176,10 @@ READ = {
     "checkNoRun": "실행 결과 보고 없음 · ",
     "checkTail": "자동 검사 {all}개 중 [[{pass}개]] 통과",
     "checkTailUnknown": "자동 검사 {all}개 중 [[{pass}개]] 통과 · 미보고 {unknown}개",
+    # 걸린 검사에만 붙는 꼬리. '없음'은 밴드 1까지 올려 말하고(위반보다 급하므로),
+    # '아무도 안 적었다'는 여기서 말하지 않고 밴드 3의 검사 칸에 회색으로 남긴다.
+    "checkFixNone": " · [[해소 작업 없음]]",
+    "checkFixSome": " · 해소 작업 [[{n}건]]",
     "stallNone": "멈춰 있는 작업 없음",
     "stallNoData": "멈춘 기간이 보고되지 않았다 — 이 구획은 아직 알 수 없다",
     "stall": "{label}{josa} [[{days}일]]째 움직이지 않는다",
@@ -603,7 +609,7 @@ def _validate_metric(v, path, metric, assets, checks, areas, statuses, drift):
 
 
 WORK_REQUIRED = ("id", "title", "area", "team", "status")
-WORK_OPTIONAL = ("block", "touches", "planStart", "planEnd", "progress", "eta",
+WORK_OPTIONAL = ("block", "touches", "fixes", "planStart", "planEnd", "progress", "eta",
                  "completedAt", "deps", "stalledDays", "drift")
 
 
@@ -643,6 +649,13 @@ def validate_data(v, data, C):
                 for i, t in enumerate(got or []):
                     suffix = "" if isinstance(w["touches"], str) else f"[{i}]"
                     v.ref(f"{p}.touches{suffix}", t, set(C["assets"]), "공용 자산")
+            if "fixes" in w:
+                # 이 작업이 어느 검사의 위반을 해소하는 일인지. touches와 같은 규칙으로 받는다.
+                # touches가 "무엇을 건드리나"라면 fixes는 "무엇을 고치나"다 — 방향이 반대다.
+                got = v.strlist(f"{p}.fixes", w["fixes"])
+                for i, t in enumerate(got or []):
+                    suffix = "" if isinstance(w["fixes"], str) else f"[{i}]"
+                    v.ref(f"{p}.fixes{suffix}", t, set(C["checks"]), "자동 검사")
             if "progress" in w:
                 v.whole(f"{p}.progress", w["progress"], 0, 100)
             if "stalledDays" in w:
@@ -771,6 +784,14 @@ def _touch_list(w):
     return [t] if isinstance(t, str) else list(t)
 
 
+def _fix_list(w):
+    """fixes를 언제나 목록으로 본다 — touches와 같은 규칙(문자열 하나도 배열도 같은 모양)."""
+    f = w.get("fixes")
+    if f is None:
+        return []
+    return [f] if isinstance(f, str) else list(f)
+
+
 def _grid_cols(n, maxcols):
     """격자 열 수 — 선언한 개수만큼 놓되, 너무 좁아지면 줄을 고르게 나눈다.
 
@@ -820,7 +841,7 @@ def compute(C, D):
         wm[wid] = {
             "id": wid, "title": w["title"], "team": w["team"], "status": w["status"],
             "area": w["area"], "areaLabel": C["areas"][w["area"]]["label"],
-            "block": w.get("block", ""), "touches": _touch_list(w),
+            "block": w.get("block", ""), "touches": _touch_list(w), "fixes": _fix_list(w),
             "progress": w.get("progress", 0),
             "s": di(w["planStart"]) if dated else None,
             "e": di(w["planEnd"]) if dated else None,
@@ -904,6 +925,13 @@ def compute(C, D):
     status_label = {"pass": T["checkPass"], "warn": T["checkWarn"], "block": T["checkBlock"],
                     "skipped": T["checkSkipped"], "never": T["checkNever"],
                     "unknown": T["checkUnknown"]}
+    # 해소 작업 — "이 위반을 고치는 일이 목록에 있나". 위반이 떠 있는데 그것을 고치는
+    # 작업이 하나도 없다는 사실은 위반 자체보다 급하다(위반은 이미 알려진 것이고, 아무도
+    # 손대지 않고 있다는 것이 지금 결정할 일이기 때문이다).
+    # 그러나 '없다'와 '아무도 안 적었다'를 같은 말로 하면 이 보드의 원칙이 무너진다.
+    # 그래서 데이터가 fixes를 한 번이라도 쓴 회차에서만 '없음'이라 말하고,
+    # 한 번도 쓰지 않았으면 '미보고'로 남긴다.
+    fixes_reported = any(wm[wid]["fixes"] for wid in order)
     runs = D["checkRuns"]
     checks = []
     for key, c in C["checks"].items():
@@ -927,10 +955,21 @@ def compute(C, D):
             status = worst
         else:
             status = "unknown"
+        # 해소 작업은 걸린 검사에만 묻는다. 통과한 검사에 "해소 작업 없음"을 띄우면
+        # 고칠 것이 없는데 없다고 말하는 셈이라 신호가 죽는다.
+        fix_work = [wid for wid in order if key in wm[wid]["fixes"]]
+        if status in ("block", "warn"):
+            fix_state = "some" if fix_work else ("none" if fixes_reported else "unknown")
+        else:
+            fix_state = ""
+        fix_label = {"some": _sub(T["fixSome"], {"n": len(fix_work)}),
+                     "none": T["fixNone"], "unknown": T["fixUnknown"]}.get(fix_state, "")
         checks.append({
             "key": key, "name": c["name"], "plain": c["plain"], "why": c.get("why", ""),
             "status": status, "statusLabel": status_label[status],
             "reported": status not in GREY_CHECK_STATES,
+            # 이 위반을 해소하는 작업(data.works[].fixes가 이 검사를 가리킨 것).
+            "fixWork": fix_work, "fixState": fix_state, "fixLabel": fix_label,
             # 위반 문구는 참조된 작업의 제목을 그대로 쓴다 — 매번 새로 쓰는 설명문을 두지 않는다.
             # 작업을 가리키지 않는 위반(저장소·의존성 단위)은 그 사실만 적는다.
             "violations": [{"ref": v.get("ref", ""),
@@ -1090,8 +1129,21 @@ def _metric(metric, C, D, TH, wm, order, ctx):
         tail_key = "checkTailUnknown" if ctx["unknownChecks"] else "checkTail"
         tail = _read(tail_key, "g", all=ctx["nChecks"],
                      **{"pass": ctx["passChecks"], "unknown": ctx["unknownChecks"]})
-        return sev, head + tail, {"work": [v["ref"] for v in c["violations"] if v["ref"]],
-                                  "checks": [c["key"]]}
+        # 해소 작업의 유무를 밴드 1 문장에 함께 싣는다. 위반 건수만 읽고 나면
+        # "그래서 누가 고치나"가 남는데, 그 답이 없다는 것이 이 카드에서 가장 급한 사실이다.
+        if c["fixState"] == "none":
+            fix = _read("checkFixNone", "r")
+        elif c["fixState"] == "some":
+            fix = _read("checkFixSome", "g", n=len(c["fixWork"]))
+        else:
+            fix = []
+        # 연결 대상은 두 방향을 합친다 — 위반을 일으킨 작업(ref)과 해소하는 작업(fixes).
+        # 절대규칙 위반에는 일으킨 작업이 없으므로, 실제로 밴드 2로 이어지는 것은 대개 뒤쪽이다.
+        work = [v["ref"] for v in c["violations"] if v["ref"]]
+        for wid in c["fixWork"]:
+            if wid not in work:
+                work.append(wid)
+        return sev, head + tail + fix, {"work": work, "checks": [c["key"]]}
 
     if kind == "area_stalled":
         ids = [w for w in order if wm[w]["area"] == metric["area"]]
@@ -1276,6 +1328,11 @@ def starter_data(today=None):
             # 아직 일정이 안 잡힌 일 → '일정 미정' 그룹으로 간다
             {"id": "W-6", "title": "지표 화면 개편 사전 검토", "area": "data", "team": "앱팀",
              "status": "doing"},
+            # 아래 보안 위반을 해소하는 일. fixes로 검사를 가리켰으므로 '기준' 카드를
+            # 누르면 밴드 2에서 이 작업이 함께 밝아진다 — 위반과 그것을 고치는 일이 이어진다.
+            {"id": "W-7", "title": "의존성 취약점 정리", "area": "server", "team": "서버팀",
+             "status": "doing", "fixes": ["security"],
+             "planStart": d(-2), "planEnd": d(10), "progress": 20},
         ],
         # 보안 점검에 걸린 것이 있다 → '기준' 카드가 켜진다.
         # 특정 작업이 아니라 저장소 전체에 걸린 위반이라 ref를 비웠다.

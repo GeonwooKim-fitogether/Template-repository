@@ -49,7 +49,11 @@
       "status": "doing", "progress": 10, "drift": true },
 
     { "id": "PR121", "title": "부품 첨부파일 정리", "area": "items", "team": "팀 A",
-      "status": "doing", "progress": 5 }
+      "status": "doing", "progress": 5 },
+
+    { "id": "PR122", "title": "개정 통제 우회 경로 차단", "area": "change", "team": "팀 B",
+      "status": "doing", "fixes": "spine",
+      "planStart": "2026-07-27", "planEnd": "2026-08-14", "progress": 20 }
   ],
 
   "violations": [
