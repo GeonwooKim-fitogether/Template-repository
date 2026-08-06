@@ -59,7 +59,7 @@ argument-hint: [선택 — PR 번호, 비우면 현재 브랜치의 main 대비 
 
 diff의 변경 유형을 매트릭스에서 찾아, **"반드시 갱신" 문서가 같은 PR에 포함됐는지** 확인한다. 대표 예:
 
-- `supabase/migrations/NNNN_*.sql` 추가 → `1-data-model/README.md`·`sitemap-erd.html`·`supabase-schema.md`가 같은 PR에 있나? (없으면 **차단 후보**.)
+- `supabase/migrations/*.sql` 추가 → `1-data-model/README.md`·`sitemap-erd.html`·`supabase-schema.md`가 같은 PR에 있나? (없으면 **차단 후보**.) 파일명 형식은 [`.claude/rules/migration-naming.md`](../rules/migration-naming.md)가 정본이다 — 신규는 `YYYYMMDDHHMMSS_이름.sql`, 옛 `NNNN_이름.sql`도 저장소에 남아 있으므로 **두 형식 모두 이 축의 대상이다.**
 - 척추(트리거/RLS) 변경 → `1-data-model/README.md`(절대 규칙)·`CLAUDE.md`(척추 한 줄) 반영?
 - 새 모듈/화면 → `sitemap-erd.html`·`STATUS.md`·e2e 스모크?
 - 기능 완성으로 백로그 종료 → `STATUS.md`에서 해당 항목 상태 갱신?
