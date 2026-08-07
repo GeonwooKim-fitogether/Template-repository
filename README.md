@@ -49,6 +49,7 @@ FITogether 팀의 **Claude Code 공용 자산 창고 + 새 프로젝트 템플�
 | `humanizer` | AI 문체를 제거하고 자연스러운 사람 말투로 재작성 |
 | `integration-board` | 여러 팀의 일이 아직 하나의 제품으로 맞물리는지 한 장으로 보여 주는 통합 현황판 HTML 생성. 고정 엔진 + 프로젝트 config + 회차 data 구조라 **판이 매번 같고**, 판정·건수는 사람이 적는 게 아니라 엔진이 계산한다. 처음 쓴다면 [사용 안내서](.claude/skills/integration-board/USER-GUIDE.html)(보드를 만드는 법)를, 다 만들어진 보드를 앞에 두고 무엇을 결정할지 모르겠으면 [읽는 법](.claude/skills/integration-board/READING-GUIDE.html)(총괄용 3~5분 절차)을 브라우저로 열어 보라. **사실을 손으로 옮기지 않고 사건마다 자동으로 갱신·게시**할 수도 있다 — [자동 수집](.claude/skills/integration-board/reference/board-collect.md) 참고. |
 | `ponytail` | 과잉 코드 억제 — "이미 있나 / 한 줄로 되나" 사다리로 가장 게으른(최소) 구현을 강제 |
+| `progress-dashboard` | 프로젝트의 결정 로그·워크리스트·git을 읽어 Director 대시보드(스윔레인 보드)로 진행상황을 단일 HTML로 렌더. 내용은 프로젝트별 `dashboard.config.json`로 교체 |
 | `qa-swarm` | 이해관계자 페르소나(L1·L2)를 subagent로 띄워 앱을 직접 써보게 하며 놓친 엣지·막힘·다자 마찰을 발견하는 QA 하네스 |
 | `remotion` | React 기반 영상 제작의 타이밍·싱크 오류 교정 |
 | `skill-creator` | 새 스킬을 코드·테스트·패키징까지 자동 생성 |
