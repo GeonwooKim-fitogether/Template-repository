@@ -30,10 +30,14 @@ canonical sources ──(adapter)──▶ raw signals
   project name, lanes/phases, work-packages, meta items, forever-pending HCP
   boundaries, and plain-language vocabulary. It lives in the project, not in this
   synced skill, so each project owns its own content.
-- **Source is pluggable** — the default `npi-docs` adapter reads the NPI doc
-  convention. When a team's status source is something else (Jira export, a CSV, a
-  test report), add a new file under `core/adapters/` and pass `--adapter <name>`.
-  The UI and config never change.
+- **Source is pluggable** — two adapters ship today: the default `npi-docs`
+  (NPI doc convention: `meta/` + `ai-npi/`) and `status-md` (a single root
+  `STATUS.md` with ✅/🟡/❌ status markers, e.g. Hardware-Team-System — see
+  [reference/CONFIG.md](reference/CONFIG.md) for its mapping). Select per
+  project with `"adapter": "status-md"` in `dashboard.config.json`, or override
+  with `--adapter <name>`. For any other source (Jira export, a CSV, a test
+  report), add a new file under `core/adapters/` returning the same shape.
+  The UI never changes.
 
 ## When to use
 

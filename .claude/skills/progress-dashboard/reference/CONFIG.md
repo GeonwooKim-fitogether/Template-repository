@@ -12,8 +12,9 @@ worklists, but labels will be raw codes — write this file for a real board.
 | field | type | required | meaning |
 |---|---|---|---|
 | `projectName` | string | yes | Shown in the tree root and summary. |
-| `lanes` | Lane[] | yes | Swimlanes, in display order. |
-| `workPackages` | WorkPackage[] | yes | The cards placed on Product lanes. |
+| `adapter` | string | no | Which data adapter reads this project (`npi-docs` default, or `status-md`). The `--adapter` CLI flag overrides this. |
+| `lanes` | Lane[] | yes* | Swimlanes, in display order. *May be omitted when the adapter supplies a `suggestedConfig` (status-md derives lanes from the document structure — see below). |
+| `workPackages` | WorkPackage[] | yes* | The cards placed on Product lanes. *Same omission rule as `lanes`. |
 | `metaItems` | MetaItem[] | no | Candidate/meta cards on the Meta lane. |
 | `metaSprint` | MetaSprint \| null | no | A single highlighted meta card. |
 | `architecturalHcps` | ArchHcp[] | no | Forever-pending boundary reminders on Control. |
@@ -90,3 +91,33 @@ zero this cycle) or `"future"` (trigger TBD). Rendered as Backlog HCP reminders.
 
 A project whose status lives somewhere else needs a new adapter under
 `core/adapters/` returning the same shape; the config and UI are unchanged.
+
+## Where the data comes from (status-md adapter)
+
+For projects that track work in a single root **`STATUS.md`** instead of the
+NPI doc convention (e.g. Hardware-Team-System). Select it with
+`"adapter": "status-md"` in the config, or `--adapter status-md`.
+
+What it reads and how it maps:
+
+| STATUS.md element | becomes |
+|---|---|
+| `## N. 제목` sections (`###` subsections merge into their parent) | lanes. The frozen UI accepts at most 5 Product lanes (`phase1`..`phase5`), so with more sections the 4 largest keep dedicated lanes and the rest fold into a fifth "그 외 절" lane. Card codes (`§2B-01`) keep the original section either way. |
+| table rows / top-level bullets carrying a status marker | cards. Status → column: `✅`·`배포완료` → Done; `⧖`·`⚠️`·`검토대기`·`✅ 작업완료`(배포 확인 대기) → Verification; `🟡` → Development; `❌`·`⏸️`·`❓` → Backlog |
+| `🔀` lines (any nesting) + items under a "다음 결정 포인트" heading | pending-decision cards on the Control lane (Director queue) |
+| the item's full text | a pseudo-task shown in the detail panel (source of truth stays STATUS.md) |
+| `git log` | last-commit chip |
+
+Because lanes and cards are derived from the document on every render, the
+config file should **omit** `lanes`/`workPackages` — writing them by hand would
+recreate the hand-maintained mirror this adapter exists to avoid.
+
+Known limits (deliberate):
+
+- **No per-item progress numbers.** STATUS.md has no task tables and no
+  item↔commit code scheme, so `🟡` cards show a fixed 1/2 bar meaning "부분
+  구현", not a measured ratio. Git-derived progress is not attempted.
+- **No decision log.** STATUS.md has no D-NNN log, so the Decision Log list is
+  empty; only the pending queue is populated.
+- Lines that look like items but carry no status marker are skipped and the
+  count is logged to stderr (`[status-md] … skipped`), never dropped silently.
