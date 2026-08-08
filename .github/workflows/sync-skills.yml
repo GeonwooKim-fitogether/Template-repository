@@ -1,11 +1,17 @@
-name: FITogether 스킬 동기화
+name: FITogether 스킬·규칙·에이전트·커맨드·워크플로 동기화
 
-# 이 repo의 .claude/skills/ 를 FITogether 스킬 창고(Template-repository)와
-# 주기적으로 맞춘다. 창고에서 스킬이 추가/수정/삭제되면, 이 봇이 알아서 가져와
-# 커밋하므로 사람이 손댈 일이 없다.
+# 이 repo의 .claude/skills/ · .claude/rules/ · .claude/agents/ · .claude/commands/ · .claude/workflows/ 를
+# FITogether 창고(Template-repository)와 주기적으로 맞춘다. 창고에서 이들이 추가/수정되면,
+# 이 봇이 알아서 가져와 커밋하므로 사람이 손댈 일이 없다.
+#
+# - .claude/skills/    : 공용 스킬 묶음 (qa-swarm 등)
+# - .claude/rules/     : 공용 규칙 (예: communication.md — 채팅·문서 어투 규칙)
+# - .claude/agents/    : 공용 서브에이전트 (예: doc-clarifier — 안 읽히는 md를 다시 써 주는 편집자)
+# - .claude/commands/  : 공용 슬래시 커맨드 (예: /orchestrate·/sysreport·/pr-gate — 시스템층 지휘)
+# - .claude/workflows/ : 공용 워크플로 (예: kimlead-verified·system-sweep — 결정론적 검증·감사)
 #
 # 이 파일은 템플릿(창고)에 들어있어서 "Use this template"로 만든 모든 repo가
-# 함께 물려받는다. 각 repo는 자기 스케줄로 이 봇을 돌려 최신 스킬을 유지한다.
+# 함께 물려받는다. 각 repo는 자기 스케줄로 이 봇을 돌려 최신 상태를 유지한다.
 
 on:
   schedule:
@@ -22,23 +28,54 @@ jobs:
       - name: 체크아웃
         uses: actions/checkout@v4
 
-      - name: 창고에서 스킬 가져오기
+      - name: 창고에서 스킬·규칙·에이전트·커맨드·워크플로 가져오기
         run: |
           rm -rf .skills-src
           git clone --depth 1 \
             https://github.com/geonwookim-fitogether/Template-repository .skills-src
-          mkdir -p .claude/skills
-          # 창고의 스킬을 이 repo로 복사(덮어쓰기). 이 repo만의 커스텀 스킬은 건드리지 않는다.
-          cp -a .skills-src/.claude/skills/. .claude/skills/
+          mkdir -p .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows
+          # 스킬은 "폴더 하나가 스킬 하나"라서, 창고에 있는 스킬 폴더는 창고가 통째로 소유한다.
+          # 그래서 덮어쓰기가 아니라 폴더째 지우고 다시 깔아 창고와 똑같이 맞춘다.
+          #
+          # 왜 이렇게 하나: 예전에는 cp로 덮어쓰기만 해서, 창고에서 파일 이름이 바뀌거나
+          # 파일이 빠지면 이 repo에는 옛 파일이 그대로 남았다. 실제로 안내서가
+          # USER-GUIDE.md에서 USER-GUIDE.html로 바뀌었을 때, 두 파일이 나란히 남아
+          # 서로 다른 내용을 말하는 상태가 될 뻔했다. 읽는 사람이 낡은 쪽을 열면
+          # 틀린 안내를 받는다.
+          #
+          # 창고에 없는 스킬 폴더(이 repo만의 커스텀 스킬)는 건드리지 않는다.
+          for d in .skills-src/.claude/skills/*/; do
+            [ -d "$d" ] || continue
+            name=$(basename "$d")
+            rm -rf ".claude/skills/$name"
+            cp -a "$d" ".claude/skills/$name"
+          done
+          # 스킬 폴더 바로 아래에 놓인 파일(README 등)이 있으면 그것도 가져온다.
+          find .skills-src/.claude/skills -maxdepth 1 -type f -exec cp -a {} .claude/skills/ \;
+
+          # 아래 넷은 폴더가 아니라 파일 단위라 어느 파일이 창고 것인지 구분할 수 없다.
+          # 그래서 지금처럼 덮어쓰기만 한다(창고에서 지운 파일은 이 repo에 남는다).
+          if [ -d .skills-src/.claude/rules ]; then
+            cp -a .skills-src/.claude/rules/. .claude/rules/
+          fi
+          if [ -d .skills-src/.claude/agents ]; then
+            cp -a .skills-src/.claude/agents/. .claude/agents/
+          fi
+          if [ -d .skills-src/.claude/commands ]; then
+            cp -a .skills-src/.claude/commands/. .claude/commands/
+          fi
+          if [ -d .skills-src/.claude/workflows ]; then
+            cp -a .skills-src/.claude/workflows/. .claude/workflows/
+          fi
           rm -rf .skills-src
 
       - name: 변경 사항 커밋 (있을 때만)
         run: |
-          if [ -n "$(git status --porcelain .claude/skills)" ]; then
+          if [ -n "$(git status --porcelain .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add .claude/skills
-            git commit -m "chore: FITogether 스킬 동기화 [skip ci]"
+            git add .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows
+            git commit -m "chore: FITogether 스킬·규칙·에이전트·커맨드·워크플로 동기화 [skip ci]"
             git push
           else
             echo "이미 최신 — 커밋 생략"
