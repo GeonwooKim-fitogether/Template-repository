@@ -86,17 +86,42 @@ function normalize(cfg) {
 }
 
 /**
+ * Fill structural fields the config file leaves out from the adapter's
+ * `suggestedConfig` (an adapter may derive lanes/work-packages from the
+ * project's own document structure — e.g. the status-md adapter derives them
+ * from STATUS.md sections, so the config never has to mirror the document).
+ * Only MISSING/EMPTY fields are filled; anything the config file states wins.
+ * Adapters without `suggestedConfig` (npi-docs) leave the config untouched.
+ */
+function fillFromSuggested(cfg, suggested) {
+  if (!suggested) return cfg;
+  const out = { ...cfg };
+  if (!Array.isArray(out.lanes) || out.lanes.length === 0) out.lanes = suggested.lanes;
+  if (!Array.isArray(out.workPackages) || out.workPackages.length === 0)
+    out.workPackages = suggested.workPackages;
+  if (!out.projectName) out.projectName = suggested.projectName;
+  return out;
+}
+
+/**
  * @param {string} projectRoot
  * @param {object} adapterData  result of adapter collect() — used for auto-derive
  * @returns {Promise<{config:object, source:string}>}
  */
 export async function loadConfig(projectRoot, adapterData) {
+  const suggested = adapterData?.suggestedConfig;
   for (const name of CONFIG_NAMES) {
     const p = path.join(projectRoot, name);
     const found = await readJsonIfExists(p);
     if (found) {
-      return { config: normalize(found), source: name };
+      return { config: normalize(fillFromSuggested(found, suggested)), source: name };
     }
+  }
+  if (suggested) {
+    return {
+      config: normalize({ ...suggested, _derived: true }),
+      source: "auto-derived (adapter)",
+    };
   }
   return { config: normalize(deriveConfig(adapterData)), source: "auto-derived" };
 }

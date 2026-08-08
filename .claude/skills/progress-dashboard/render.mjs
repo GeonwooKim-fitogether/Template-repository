@@ -41,6 +41,28 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Resolve which adapter to use. Precedence:
+ *   1. --adapter flag
+ *   2. "adapter" field in the project's dashboard.config.json
+ *   3. "npi-docs" (default — unchanged for existing projects)
+ */
+async function resolveAdapterName(projectRoot, flagValue) {
+  if (flagValue) return flagValue;
+  for (const name of ["dashboard.config.json", ".claude/dashboard.config.json"]) {
+    try {
+      const raw = await fs.readFile(path.join(projectRoot, name), "utf-8");
+      const cfg = JSON.parse(raw);
+      if (cfg && typeof cfg.adapter === "string" && /^[a-z0-9-]+$/i.test(cfg.adapter)) {
+        return cfg.adapter;
+      }
+    } catch {
+      // missing/invalid config — fall through
+    }
+  }
+  return "npi-docs";
+}
+
 /** Build the full DashboardData for a project (config + adapter + builder). */
 async function assemble(projectRoot, adapterName) {
   const adapterMod = await import(
@@ -68,6 +90,8 @@ async function assemble(projectRoot, adapterName) {
     })),
     source: {
       ...base.source,
+      // Adapters that read a different canonical source may say so.
+      file: adapterData.sourceFile ?? base.source.file,
       generatedAt: new Date().toISOString(),
       configSource,
       adapter: adapterName,
@@ -90,7 +114,7 @@ async function renderHtml(data, templatePath) {
 async function main() {
   const args = parseArgs(process.argv);
   const projectRoot = path.resolve(args._[0] ?? process.cwd());
-  const adapterName = args.adapter ?? "npi-docs";
+  const adapterName = await resolveAdapterName(projectRoot, args.adapter);
 
   const templatePath = args.artifact ? TEMPLATE_BODY : TEMPLATE_FULL;
   try {
