@@ -56,7 +56,7 @@ FITogether 팀의 **Claude Code 공용 자산 창고 + 새 프로젝트 템플�
 | `superpower` | 스펙→계획→테스트를 강제하는 시니어 개발 워크플로 |
 | `understand` | 코드베이스 의존성 지식 그래프 생성 및 시각화 |
 | `webapp-testing` | 로컬 웹앱을 Playwright로 구동·테스트·스크린샷·로그 확인 |
-| `workflow-designer` | 업무·시스템 흐름을 점검하고 Mermaid 플로차트로 그려 아티팩트로 보여줌 |
+| `workflow-designer` | 업무·시스템 흐름을 점검해 시각화. 도메인 이름만 주면(예: PLM·EPTS) 질문·조사를 거쳐 비전문가용 다층 워크플로로 풀어 아티팩트로 보여줌 |
 
 > 아래 스킬은 커뮤니티 오픈소스를 그대로 들여온(vendored) 것입니다(모두 MIT, 각 폴더에 원본 LICENSE 포함): `design-taste-frontend`([Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill)), `ponytail`([DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)), `grill-me`·`grilling`([mattpocock/skills](https://github.com/mattpocock/skills)).
 
