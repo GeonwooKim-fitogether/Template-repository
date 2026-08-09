@@ -207,6 +207,13 @@ export function DirectorDashboardMVP({ data: initialData }: Props = {}) {
   // ---------- theme (light/dark) ----------
   const { theme, toggle: toggleTheme } = useDashboardTheme();
 
+  // The whole dashboard produced no cards — a setup problem, not a filter.
+  // In that state two header affordances actively mislead: the "Live · Ns ago"
+  // badge implies a healthy feed is arriving, and "Detail 열기" offers a drawer
+  // that can only ever say "click a card" when there is no card to click. Both
+  // are suppressed so the empty-state explanation is the only thing on screen.
+  const boardIsEmpty = TICKETS.length === 0;
+
   // ---------- render ----------
   return (
     <div
@@ -234,11 +241,13 @@ export function DirectorDashboardMVP({ data: initialData }: Props = {}) {
             if (t !== theme) toggleTheme();
           }}
           liveSlot={
-            <SyncIndicator
-              lastSyncAt={lastSyncAt}
-              error={syncError}
-              intervalMs={POLL_INTERVAL_MS}
-            />
+            boardIsEmpty ? undefined : (
+              <SyncIndicator
+                lastSyncAt={lastSyncAt}
+                error={syncError}
+                intervalMs={POLL_INTERVAL_MS}
+              />
+            )
           }
           rightSlot={
             focusedTicketId !== null ? (
@@ -306,6 +315,11 @@ export function DirectorDashboardMVP({ data: initialData }: Props = {}) {
             groupMode={groupMode}
             flowMode={flowMode}
             agents={data?.agents}
+            totalTicketCount={TICKETS.length}
+            emptyDiagnostics={{
+              adapter: data?.source?.adapter,
+              configSource: data?.source?.configSource,
+            }}
           />
 
           {drawerOpen && (
@@ -335,7 +349,7 @@ export function DirectorDashboardMVP({ data: initialData }: Props = {}) {
           )}
         </div>
 
-        {!drawerOpen && (
+        {!drawerOpen && !boardIsEmpty && (
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}

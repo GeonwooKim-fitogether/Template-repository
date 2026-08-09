@@ -158,7 +158,9 @@ export function DetailDrawer({
             </p>
           )}
 
-          {worklist && <WorklistPanel worklist={worklist} />}
+          {worklist && (
+            <WorklistPanel worklist={worklist} cardProgress={ticket.progress} />
+          )}
 
           <div>
             <div
