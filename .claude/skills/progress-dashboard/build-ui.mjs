@@ -76,12 +76,33 @@ const js = result.outputFiles[0].text;
 // The dashboard components style layout with Tailwind utility classes
 // (flex/gap/padding/text-sizes/font-mono/...). Those must be compiled and
 // inlined, or the standalone bundle renders as unstyled stacked text.
+//
+// An unstyled bundle is the dangerous outcome here: it is a valid HTML file
+// that renders, so nothing downstream errors — it just looks broken, and it
+// would be committed as the frozen shell. So the two ways Tailwind can produce
+// no utilities are both treated as build failures, not warnings:
+//
+//   1. tailwindcss is not installed  -> the CLI is missing (checked below)
+//   2. tailwindcss runs but produces no utilities -> it exits 0 and emits ~5 KB
+//      of preflight-only CSS with zero class selectors. A Tailwind upgrade that
+//      changes how `content` is configured (v4 dropped the v3 config contract)
+//      lands here, and an exit code of 0 makes it invisible.
+//
+// Empirically, compiling this UI yields ~116 class selectors; a compile that
+// resolved no source files yields exactly 0. The floor below sits far under the
+// real count so it never fires on a healthy build, and far over 0 so an empty
+// compile can never pass.
+const MIN_CLASS_SELECTORS = 20;
+
 function generateTailwindCss() {
   const cliPath = join(depsDir, "tailwindcss", "lib", "cli.js");
   if (!existsSync(cliPath)) {
-    console.error(`[build-ui] tailwindcss CLI not found at ${cliPath} — UI will be unstyled.`);
+    console.error(`[build-ui] tailwindcss CLI not found at ${cliPath}\n` +
+      `The UI would be emitted unstyled, so the build stops here. ` +
+      `Install tailwindcss into the --deps node_modules and re-run.`);
     process.exit(2);
   }
+  const srcDir = join(__dirname, "ui-src");
   const tmp = mkdtempSync(join(tmpdir(), "pd-tw-"));
   const posix = (p) => p.replace(/\\/g, "/");
   const inputCss =
@@ -89,7 +110,7 @@ function generateTailwindCss() {
     ":root{color-scheme:light dark}\nhtml,body{height:100%}\n";
   const cfg =
     "module.exports={content:[" +
-    JSON.stringify(posix(join(__dirname, "ui-src")) + "/**/*.{ts,tsx}") +
+    JSON.stringify(posix(srcDir) + "/**/*.{ts,tsx}") +
     "],theme:{extend:{}},plugins:[]};\n";
   const inPath = join(tmp, "in.css");
   const cfgPath = join(tmp, "tw.config.cjs");
@@ -102,7 +123,16 @@ function generateTailwindCss() {
       cwd: __dirname,
     });
     const css = readFileSync(outPath, "utf8");
-    console.log(`[build-ui] tailwind css: ${(Buffer.byteLength(css, "utf8") / 1024).toFixed(0)} KB`);
+    const selectors = (css.match(/\.[a-zA-Z][a-zA-Z0-9_\\.:[\]%#/-]*\s*[{,]/g) || []).length;
+    if (selectors < MIN_CLASS_SELECTORS) {
+      console.error(`[build-ui] tailwind produced only ${selectors} class selectors ` +
+        `(expected at least ${MIN_CLASS_SELECTORS}).\n` +
+        `That is preflight-only CSS — the emitted UI would be unstyled, so the build ` +
+        `stops before overwriting assets/.`);
+      process.exit(2);
+    }
+    console.log(`[build-ui] tailwind css: ${(Buffer.byteLength(css, "utf8") / 1024).toFixed(0)} KB ` +
+      `(${selectors} class selectors)`);
     return css;
   } finally {
     rmSync(tmp, { recursive: true, force: true });
