@@ -55,6 +55,14 @@ export function TopBarV3({
       style={{
         display: "flex",
         alignItems: "center",
+        // Wrap instead of pushing the page wider. The bar's three right-hand
+        // groups need ~820px on their own; on a narrow viewport a nowrap bar
+        // forces the whole document to scroll horizontally, which puts the
+        // Theme toggle and the badges off-screen. Wrapping only engages when
+        // the row would not have fit anyway, so wide screens look unchanged.
+        flexWrap: "wrap",
+        rowGap: 8,
+        columnGap: 12,
         padding: "10px 16px",
         background: TOKENS.bgWhite,
         borderBottom: `1px solid ${TOKENS.border}`,
@@ -62,11 +70,22 @@ export function TopBarV3({
       }}
     >
       {/* LEFT — Title */}
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexShrink: 0 }}>
-        <h1 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: TOKENS.textPrimary }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+        <h1 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: TOKENS.textPrimary, flexShrink: 0 }}>
           Director Dashboard
         </h1>
-        <span style={{ fontSize: 11.5, color: TOKENS.textMuted }}>
+        <span
+          style={{
+            fontSize: 11.5,
+            color: TOKENS.textMuted,
+            // A long project name must ellipsize rather than re-introduce the
+            // horizontal overflow this bar was just taught to avoid.
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
           · {projectName}
         </span>
       </div>
@@ -87,7 +106,17 @@ export function TopBarV3({
       )}
 
       {/* RIGHT — 3 groups (Live | Toggles | Badges), wider inter-group gap */}
-      <div style={{ display: "flex", alignItems: "center", gap: 28, flexShrink: 0, marginLeft: "auto" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+          columnGap: 24,
+          rowGap: 8,
+          marginLeft: "auto",
+        }}
+      >
 
         {/* Group 1: Live indicator */}
         {liveSlot && (
@@ -97,7 +126,7 @@ export function TopBarV3({
         )}
 
         {/* Group 2: Toggles (Group / Flow / Theme) */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 14, rowGap: 8 }}>
           <Field
             label="Group"
             options={[
