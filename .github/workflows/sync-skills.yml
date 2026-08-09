@@ -9,6 +9,9 @@ name: FITogether 스킬·규칙·에이전트·커맨드·워크플로 동기화
 # - .claude/agents/    : 공용 서브에이전트 (예: doc-clarifier — 안 읽히는 md를 다시 써 주는 편집자)
 # - .claude/commands/  : 공용 슬래시 커맨드 (예: /orchestrate·/sysreport·/pr-gate — 시스템층 지휘)
 # - .claude/workflows/ : 공용 워크플로 (예: kimlead-verified·system-sweep — 결정론적 검증·감사)
+# - .claude/settings.json 의 permissions.allow : 공용 도구 허용 목록
+#   (예: Supabase 의 execute_sql — 매번 권한 창을 띄우지 않고 바로 실행하게 하는 규칙).
+#   이 파일만은 통째로 덮어쓰지 않고 permissions.allow 칸만 합집합으로 합친다. 이유는 아래 주석 참고.
 #
 # 이 파일은 템플릿(창고)에 들어있어서 "Use this template"로 만든 모든 repo가
 # 함께 물려받는다. 각 repo는 자기 스케줄로 이 봇을 돌려 최신 상태를 유지한다.
@@ -67,15 +70,40 @@ jobs:
           if [ -d .skills-src/.claude/workflows ]; then
             cp -a .skills-src/.claude/workflows/. .claude/workflows/
           fi
+
+          # 도구 허용 목록(.claude/settings.json 의 permissions.allow)만 창고 것과 합친다.
+          #
+          # 왜 덮어쓰지 않고 합치나: settings.json 은 위 다섯 폴더와 성격이 다르다.
+          # 그 안에는 이 repo만의 훅 설정이나 이 repo에서 직접 추가한 허용 규칙이 들어 있을 수
+          # 있는데, 파일째 덮어쓰면 그것들이 조용히 사라진다. 그래서 창고가 소유하는 것은
+          # permissions.allow 한 칸으로 한정하고, 그 칸만 두 목록의 합집합으로 바꾼다.
+          # 나머지 항목(hooks·env·model 등)은 이 repo 것을 그대로 둔다.
+          #
+          # 합집합이라 여러 번 돌려도 결과가 같고(멱등), 이 repo가 추가한 허용 규칙도 살아남는다.
+          # 반대로 창고에서 허용 규칙을 지워도 이 repo에서는 지워지지 않는다 — 권한을 넓히는
+          # 변경만 자동으로 퍼지고, 좁히는 변경은 사람이 각 repo에서 직접 지워야 한다.
+          if [ -f .skills-src/.claude/settings.json ]; then
+            [ -f .claude/settings.json ] || echo '{}' > .claude/settings.json
+            jq -s '
+              .[0] as $mine
+              | .[1] as $warehouse
+              | $mine
+              | .permissions = ((.permissions // {}) + {
+                  allow: (((.permissions.allow // []) + ($warehouse.permissions.allow // [])) | unique)
+                })
+            ' .claude/settings.json .skills-src/.claude/settings.json > .claude/settings.json.tmp
+            mv .claude/settings.json.tmp .claude/settings.json
+          fi
+
           rm -rf .skills-src
 
       - name: 변경 사항 커밋 (있을 때만)
         run: |
-          if [ -n "$(git status --porcelain .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows)" ]; then
+          if [ -n "$(git status --porcelain .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/settings.json)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows
-            git commit -m "chore: FITogether 스킬·규칙·에이전트·커맨드·워크플로 동기화 [skip ci]"
+            git add .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/settings.json
+            git commit -m "chore: FITogether 스킬·규칙·에이전트·커맨드·워크플로·허용목록 동기화 [skip ci]"
             git push
           else
             echo "이미 최신 — 커밋 생략"
