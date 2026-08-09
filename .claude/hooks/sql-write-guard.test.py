@@ -120,6 +120,17 @@ def check_hook_output() -> int:
         print(f"  [실패] 다른 도구인데 훅이 참견했다: {out}")
         failures += 1
 
+    # 마이그레이션은 내용과 무관하게 전부 막혀야 한다. 읽기만 하는 SQL 을 담아도
+    # 마이그레이션으로 적용하는 행위 자체가 데이터베이스를 바꾸기 때문이다.
+    for query in ("alter table item add column foo text;", "select 1;"):
+        out = run_hook({
+            "tool_name": "mcp__Supabase__apply_migration",
+            "tool_input": {"name": "20260809000000_probe", "query": query},
+        })
+        if decision_of(out) != "deny":
+            print(f"  [실패] 마이그레이션이 막히지 않았다 ({query!r}): {out!r}")
+            failures += 1
+
     return failures
 
 
@@ -164,4 +175,5 @@ if __name__ == "__main__":
         sys.exit(1)
     print(f"✓ 통과 — 조회 {len(SHOULD_PASS)}건은 그대로 지나가고, "
           f"쓰기 {len(SHOULD_DENY)}건은 모두 차단됐으며, "
+          f"마이그레이션은 내용과 무관하게 차단되고, "
           f"열쇠는 한 번만 통했습니다.")
