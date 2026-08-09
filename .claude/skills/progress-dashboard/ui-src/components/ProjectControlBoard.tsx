@@ -28,6 +28,20 @@ interface Props {
    *   "off" — overlay 숨김
    */
   flowMode: FlowMode;
+  /**
+   * How many cards the whole dashboard has, ignoring the Work Tree scope.
+   * Lets the empty state tell two very different situations apart:
+   *   0  — the project produced no cards at all (a setup problem worth
+   *        explaining, because "No cards" reads as "the tool is broken")
+   *   >0 — the project has cards, the selected tree node just has none
+   *        (normal filtering, one sentence is enough)
+   */
+  totalTicketCount: number;
+  /**
+   * Provenance shown in the project-wide empty state so the reader can see
+   * which adapter ran and which config it used before being told what to fix.
+   */
+  emptyDiagnostics?: { adapter?: string; configSource?: string };
 }
 
 // Legacy fallback order + outcomes — used only when the data carries no
@@ -101,6 +115,129 @@ function buildPhaseLanes(lanes: Lane[], tickets: Ticket[]): SwimlaneRow[] {
   return rows;
 }
 
+/**
+ * Empty board.
+ *
+ * The old copy was a single line — "No cards in this scope." — which reads as
+ * "the dashboard is broken" when the whole project comes up empty. It named
+ * neither the cause nor a next step. This version answers three questions in
+ * order: what happened, why it probably happened, and what to do about it.
+ * The scope-filtered case stays one sentence, because there nothing is wrong.
+ */
+function EmptyBoard({
+  projectWide,
+  diagnostics,
+}: {
+  projectWide: boolean;
+  diagnostics?: { adapter?: string; configSource?: string };
+}) {
+  const shellStyle = {
+    background: TOKENS.bgWhite,
+    border: `1px dashed ${TOKENS.border}`,
+  } as const;
+
+  if (!projectWide) {
+    return (
+      <div
+        className="rounded-md p-6 text-center text-[13px]"
+        style={{ ...shellStyle, color: TOKENS.textMuted }}
+      >
+        선택한 범위에는 카드가 없습니다. 왼쪽 Work Tree 에서 상위 노드를 선택하면 더 넓은
+        범위의 카드를 볼 수 있습니다.
+      </div>
+    );
+  }
+
+  const rows: [string, string][] = [
+    ["Adapter", diagnostics?.adapter ?? "(알 수 없음)"],
+    ["Config", diagnostics?.configSource ?? "(알 수 없음)"],
+  ];
+
+  return (
+    <div
+      className="rounded-md p-6"
+      style={{ ...shellStyle, maxWidth: 720, margin: "0 auto" }}
+    >
+      <div>
+        <div
+          className="text-[15px] font-semibold"
+          style={{ color: TOKENS.textPrimary }}
+        >
+          표시할 카드가 없습니다
+        </div>
+        <p
+          className="mt-2 text-[12.5px] leading-relaxed"
+          style={{ color: TOKENS.textSecondary }}
+        >
+          대시보드가 고장난 것이 아닙니다. 이 프로젝트에서 카드로 만들 정본 문서(작업
+          워크리스트와 결정 로그)를 하나도 찾지 못한 상태입니다. 아래는 방금 어떤 설정으로
+          읽었는지입니다.
+        </p>
+
+        <dl
+          className="mt-3 grid grid-cols-[72px_1fr] gap-x-3 gap-y-1 rounded p-2.5 text-[12px]"
+          style={{ background: TOKENS.bg, border: `1px solid ${TOKENS.divider}` }}
+        >
+          {rows.map(([k, val]) => (
+            <div key={k} style={{ display: "contents" }}>
+              <dt style={{ color: TOKENS.textMuted }}>{k}</dt>
+              <dd className="font-mono text-[11.5px]" style={{ color: TOKENS.textPrimary }}>
+                {val}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <div
+          className="mt-3 text-[11px] font-semibold uppercase tracking-wider"
+          style={{ color: TOKENS.textMuted }}
+        >
+          다음에 할 일
+        </div>
+        <ol
+          className="mt-1.5 space-y-1.5 text-[12.5px] leading-relaxed"
+          style={{ color: TOKENS.textSecondary, listStyle: "decimal", paddingLeft: 18 }}
+        >
+          <li>
+            프로젝트 루트의 <Code>dashboard.config.json</Code> 에{" "}
+            <Code>&quot;adapter&quot;</Code> 를 지정합니다. 지금 쓸 수 있는 값은{" "}
+            <Code>npi-docs</Code> 와 <Code>status-md</Code> 두 가지입니다.
+          </li>
+          <li>
+            그 어댑터가 읽는 정본 문서가 실제로 있는지 확인합니다.{" "}
+            <Code>npi-docs</Code> 는 워크리스트 문서와 결정 로그를,{" "}
+            <Code>status-md</Code> 는 <Code>STATUS.md</Code> 를 읽습니다.
+          </li>
+          <li>
+            설정 항목 전체는 스킬 폴더의 <Code>reference/CONFIG.md</Code> 에 정리돼
+            있습니다.
+          </li>
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code
+      className="font-mono text-[11.5px]"
+      style={{
+        background: TOKENS.bg,
+        border: `1px solid ${TOKENS.divider}`,
+        borderRadius: 3,
+        padding: "1px 4px",
+        color: TOKENS.textPrimary,
+        // Identifiers must not be split across lines — "npi-docs" broken into
+        // "npi-" / "docs" reads as two different values.
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </code>
+  );
+}
+
 export function ProjectControlBoard({
   lanes,
   tickets,
@@ -111,6 +248,8 @@ export function ProjectControlBoard({
   groupMode,
   flowMode,
   agents,
+  totalTicketCount,
+  emptyDiagnostics,
 }: Props) {
   const rows = useMemo<SwimlaneRow[]>(
     () =>
@@ -160,7 +299,13 @@ export function ProjectControlBoard({
       aria-label="Project Control Board"
     >
       <div className="overflow-x-auto p-3" style={{ minWidth: 0 }}>
-        <div ref={flowContainerRef} style={{ minWidth: 1200, position: "relative" }}>
+        {/* minWidth is `min-content`, not a hardcoded 1200px: the lanes below
+            declare their own real minimum (6 columns × 200px + gaps), so the
+            track widens to whatever the column model actually needs and the
+            parent `overflow-x-auto` scrolls to reach every column. A fixed
+            1200px was narrower than the lanes' true 1258px, which is how the
+            last column ended up cropped and unreachable. */}
+        <div ref={flowContainerRef} style={{ minWidth: "min-content", position: "relative" }}>
           {rows.map(({ lane, tickets: laneTickets }) => (
             <BoardLane
               key={lane.id}
@@ -173,16 +318,10 @@ export function ProjectControlBoard({
             />
           ))}
           {tickets.length === 0 && (
-            <div
-              className="rounded-md p-6 text-center text-sm"
-              style={{
-                color: TOKENS.textMuted,
-                background: TOKENS.bgWhite,
-                border: `1px dashed ${TOKENS.border}`,
-              }}
-            >
-              No cards in this scope.
-            </div>
+            <EmptyBoard
+              projectWide={totalTicketCount === 0}
+              diagnostics={emptyDiagnostics}
+            />
           )}
           <FlowOverlay
             containerRef={flowContainerRef}

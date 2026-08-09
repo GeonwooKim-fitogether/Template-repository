@@ -400,5 +400,9 @@ export interface DashboardData {
     file?: string;
     generatedAt?: string;
     schemaVersion?: string;
+    /** Which adapter read this project ("npi-docs" / "status-md"). */
+    adapter?: string;
+    /** Which config file was used, or the auto-derive note when there is none. */
+    configSource?: string;
   };
 }

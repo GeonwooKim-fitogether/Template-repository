@@ -81,10 +81,22 @@ function buildWpTickets(cfg, worklists, progress, closure, reReview, oneLiners) 
       nextAction = "→ 아직 계획 안 됨";
     }
 
+    // Two progress figures can appear for the same card and they are derived
+    // differently, so they legitimately disagree: the card badge counts git
+    // commits (or the state sentinel), while this one counts the completed rows
+    // of the worklist document. Each is labelled with where it came from —
+    // an unlabelled pair of different numbers just makes the reader guess which
+    // one to believe. (`lastSha` is guarded because it is often an empty string,
+    // which used to render as a dangling "Last commit:" with nothing after it.)
     const description = [
       c?.date && c?.decisionId ? `${c.decisionId} · ${c.date}` : c?.decisionId,
-      worklist ? `Worklist: ${worklist.totals.done}/${worklist.totals.total} done` : undefined,
-      prog ? `Last commit: ${prog.lastSha}` : undefined,
+      worklist
+        ? `worklist 문서 기준 ${worklist.totals.done}/${worklist.totals.total} done`
+        : undefined,
+      prog
+        ? `카드 badge 는 ${prog.source === "sentinel" ? "state 문구" : "git 커밋"} 기준 ${prog.done}/${prog.total}`
+        : undefined,
+      prog?.lastSha ? `last commit ${prog.lastSha}` : undefined,
     ].filter(Boolean).join(" · ") || undefined;
 
     const codeLabel = p.legacy && p.legacy !== p.wp ? `${p.legacy} / ${p.wp}` : (p.wp || p.legacy);

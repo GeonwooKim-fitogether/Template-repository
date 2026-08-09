@@ -24,6 +24,13 @@ import type { WorklistData, WorklistTask, WorklistTaskStatus } from "../types";
 
 interface Props {
   worklist: WorklistData;
+  /**
+   * The same card's progress figure as shown on the board card, which is
+   * derived from a different source (git commits or the state sentinel). When
+   * the two disagree the panel says so in one line instead of leaving two bare
+   * numbers on screen for the reader to arbitrate between.
+   */
+  cardProgress?: { done: number; total: number; source: "sentinel" | "commits" | "merged" };
 }
 
 type TaskState = "done" | "prog" | "wait" | "risk";
@@ -81,8 +88,13 @@ function groupByPhase(tasks: WorklistTask[]): { phase: string; tasks: WorklistTa
   return order.map((phase) => ({ phase, tasks: groups.get(phase)! }));
 }
 
-export function WorklistPanel({ worklist }: Props) {
+export function WorklistPanel({ worklist, cardProgress }: Props) {
   const { totals, tasks, code, relPath, absPath } = worklist;
+  // Only worth explaining when the two figures actually differ. Identical
+  // numbers need no disclaimer, and adding one anyway would be noise.
+  const disagrees =
+    !!cardProgress &&
+    (cardProgress.done !== totals.done || cardProgress.total !== totals.total);
   const groups = groupByPhase(tasks);
   const pctDone = totals.total > 0
     ? Math.round((totals.done / totals.total) * 100)
@@ -129,6 +141,14 @@ export function WorklistPanel({ worklist }: Props) {
             <span style={{ fontSize: 12, color: TOKENS.textPrimary, fontWeight: 600 }}>
               {totals.done}/{totals.total} done
             </span>
+            {/* Names where this number came from, mirroring the `commits` /
+                `sentinel` tag printed on the board card. */}
+            <span
+              title="이 문서의 태스크 표에서 완료 표시된 줄을 센 값입니다."
+              style={{ fontSize: 10, color: TOKENS.textMuted }}
+            >
+              worklist
+            </span>
             {(["prog", "wait", "risk"] as TaskState[]).map((s) =>
               stateCounts[s] > 0 ? (
                 <StateCountChip key={s} state={s} count={stateCounts[s]} />
@@ -173,6 +193,22 @@ export function WorklistPanel({ worklist }: Props) {
           }}
         />
       </div>
+
+      {disagrees && cardProgress && (
+        <div
+          className="rounded px-2 py-1.5 text-[11px] leading-relaxed"
+          style={{
+            background: TOKENS.bg,
+            border: `1px solid ${TOKENS.divider}`,
+            color: TOKENS.textSecondary,
+          }}
+        >
+          카드에 적힌 <strong>T-{cardProgress.done}/{cardProgress.total}</strong> 와 위의{" "}
+          <strong>{totals.done}/{totals.total}</strong> 는 세는 대상이 달라서 다릅니다. 카드
+          숫자는 {cardProgress.source === "sentinel" ? "state 파일의 상태 문구" : "git 커밋 기록"}
+          에서 유도했고, 위 숫자는 이 문서의 완료 표시를 셌습니다. 둘 다 맞는 값입니다.
+        </div>
+      )}
 
       {groups.map(({ phase, tasks: groupTasks }) => {
         const sState = phaseState(groupTasks);

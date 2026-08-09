@@ -278,7 +278,13 @@ export function TicketCard({
 
       {ticket.progress && (() => {
         const p = ticket.progress;
-        const sourceIcon = p.source === "commits" ? "📡" : p.source === "merged" ? "🔗" : "✋";
+        // Short word printed next to the number. The dashboard shows more than
+        // one progress figure for the same card (this one, and the worklist
+        // tally in the detail panel), and they are derived differently, so they
+        // legitimately disagree. Naming each number's origin on the face of the
+        // card is what stops the reader from having to guess which one is real.
+        const sourceTag =
+          p.source === "commits" ? "commits" : p.source === "merged" ? "merged" : "sentinel";
         const sourceLabel =
           p.source === "commits"
             ? `auto-derived from ${p.commitCount ?? 0} commit(s)`
@@ -288,7 +294,11 @@ export function TicketCard({
         return (
           <div
             className="mt-2 flex items-center gap-2"
-            title={`Progress: ${p.raw}${p.lastSha ? ` · last commit ${p.lastSha}` : ""}\nSource: ${sourceLabel}`}
+            title={
+              `진행률 ${p.done}/${p.total} — 출처: ${sourceTag} (${sourceLabel})\n` +
+              `원본: ${p.raw}${p.lastSha ? ` · last commit ${p.lastSha}` : ""}\n` +
+              `상세 패널의 worklist 집계는 문서의 체크 상태를 세므로 이 숫자와 다를 수 있습니다.`
+            }
           >
             <div
               aria-hidden
@@ -318,12 +328,18 @@ export function TicketCard({
                 }}
               />
             </div>
-            <span aria-hidden style={{ fontSize: 10 }}>{sourceIcon}</span>
             <span
               className="font-mono text-[10px] font-semibold"
               style={{ color: TOKENS.textSecondary }}
             >
               T-{p.done}/{p.total}
+            </span>
+            {/* Replaces the old 📡/🔗/✋ glyph. The glyph carried exactly this
+                information but could only be decoded from the tooltip, so a
+                plain lowercase word is both clearer and quieter. Kept muted and
+                un-bolded so it annotates the number without competing with it. */}
+            <span className="text-[10px]" style={{ color: TOKENS.textMuted }}>
+              {sourceTag}
             </span>
             {p.lastSha && (
               <span

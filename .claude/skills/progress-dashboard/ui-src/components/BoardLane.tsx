@@ -44,7 +44,16 @@ export function BoardLane({
         border: `1px solid ${TOKENS.border}`,
         borderRadius: 8,
         marginBottom: 14,
-        overflow: "hidden",
+        // `clip` (not `hidden`) on purpose. `overflow: hidden` makes this box a
+        // scroll container, and a scroll container's min-content contribution is
+        // zero — so the 6-column grid below (which needs 6 × 200px + gaps) was
+        // silently CROPPED instead of widening the lane, and the cropped columns
+        // could not be reached by scrolling either. `clip` still clips children
+        // to the border radius but keeps the intrinsic width contribution, so
+        // `minWidth: min-content` below can push the lane out to its real width
+        // and the board's `overflow-x-auto` ancestor scrolls to reach it.
+        overflow: "clip",
+        minWidth: "min-content",
       }}
       aria-label={`Lane ${lane.label}`}
     >
