@@ -22,3 +22,8 @@ _site/
 # Generated dashboard output (produced per-project by the progress-dashboard skill)
 .claude/progress-dashboard.html
 .claude/progress-dashboard.body.html
+
+# 데이터베이스 쓰기 허가용 일회용 열쇠(.claude/rules/db-write-permission.md).
+# 사용자가 승인한 그 순간에만 존재했다가 쓰이면 사라지는 파일이므로, 저장소에
+# 들어가면 안 된다. 커밋되는 순간 "항상 열려 있는 열쇠"가 되어 장치가 무력해진다.
+.claude/sql-write-unlock
