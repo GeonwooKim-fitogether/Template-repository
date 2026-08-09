@@ -15,7 +15,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__Supabase__execute_sql",
+        "matcher": "mcp__Supabase__execute_sql|mcp__Supabase__apply_migration",
         "hooks": [
           {
             "type": "command",

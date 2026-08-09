@@ -12,6 +12,18 @@ Supabase 의 SQL 실행 도구(`execute_sql`)는 권한 목록에서 통째로 �
 이 훅이 그 틈을 메웁니다. 도구가 호출되기 직전에 쿼리문을 읽어, 읽기만 하는
 쿼리면 그대로 통과시키고, 데이터나 구조를 바꾸는 쿼리면 차단합니다.
 
+## 두 도구를 본다 — 하나는 가려서, 하나는 무조건
+
+| 도구 | 하는 일 | 이 훅의 처리 |
+|---|---|---|
+| `execute_sql` | 조회와 쓰기가 한 도구에 섞여 있다 | 쿼리문을 읽어 **가린다.** 조회면 통과, 쓰기면 차단 |
+| `apply_migration` | 데이터베이스 구조를 바꾸는 스크립트를 적용한다 | 가릴 것이 없다. **전부 쓰기**이므로 내용과 무관하게 차단 |
+
+`apply_migration` 을 함께 보는 이유는 실제 사고에서 나왔습니다. 한 세션이 이 도구를
+여섯 번 불러 라이브 데이터베이스를 바꿨는데, 그 도구는 허용 목록에도 없고 이 훅도
+보지 않던 경로여서 아무 확인 없이 지나갔습니다. `execute_sql` 만 막아 두면 옆문이
+열려 있는 셈입니다.
+
 ## 왜 "확인 요청"이 아니라 "차단"인가 — 이 환경에서 실측한 결과
 
 Claude Code 의 권한 판정에는 세 가지가 있습니다. `allow`(통과) · `ask`(사람에게
@@ -101,6 +113,15 @@ WRITE_PATTERN = re.compile(
 
 UNLOCK_FILENAME = "sql-write-unlock"
 
+# 이 훅이 지켜보는 도구.
+#
+# `execute_sql` 은 조회와 쓰기가 한 도구에 섞여 있어 쿼리문을 읽어 가려야 한다.
+# `apply_migration` 은 가릴 것이 없다 — 마이그레이션은 정의상 데이터베이스의 구조를
+# 바꾸는 스크립트이므로 전부 쓰기다. 그래서 쿼리 내용과 무관하게 열쇠를 요구한다.
+SQL_TOOL = "mcp__Supabase__execute_sql"
+MIGRATION_TOOL = "mcp__Supabase__apply_migration"
+WATCHED_TOOLS = (SQL_TOOL, MIGRATION_TOOL)
+
 
 def unlock_path() -> str:
     """열쇠 파일의 경로. 훅 파일 위치를 기준으로 삼아 실행 위치와 무관하게 같은 곳을 본다."""
@@ -140,16 +161,16 @@ def classify(query: str):
     statements = [s.strip() for s in cleaned.split(";")]
     statements = [s for s in statements if s]
     if not statements:
-        return False, "쿼리가 비어 있어 무엇을 실행하는지 판단할 수 없습니다"
+        return False, "읽기 전용 쿼리가 아닙니다 — 쿼리가 비어 있어 무엇을 실행하는지 판단할 수 없습니다"
 
     for statement in statements:
         first = re.split(r"[\s(]+", statement.lstrip("("), 1)[0].lower()
         if first not in READ_STARTERS:
-            return False, f"조회로 시작하지 않는 문장이 있습니다 ({first})"
+            return False, f"읽기 전용 쿼리가 아닙니다 — 조회로 시작하지 않는 문장이 있습니다 ({first})"
 
     found = WRITE_PATTERN.search(cleaned)
     if found:
-        return False, f"데이터나 구조를 바꾸는 단어가 있습니다 ({found.group(1).lower()})"
+        return False, f"읽기 전용 쿼리가 아닙니다 — 데이터나 구조를 바꾸는 단어가 있습니다 ({found.group(1).lower()})"
 
     return True, None
 
@@ -161,13 +182,17 @@ def main() -> int:
         # 입력을 못 읽으면 판단하지 않고 원래 권한 흐름에 맡긴다.
         return 0
 
-    if payload.get("tool_name") != "mcp__Supabase__execute_sql":
+    tool = payload.get("tool_name")
+    if tool not in WATCHED_TOOLS:
         return 0
 
-    query = (payload.get("tool_input") or {}).get("query") or ""
-    is_read_only, reason = classify(query)
-    if is_read_only:
-        return 0
+    if tool == MIGRATION_TOOL:
+        reason = "마이그레이션은 데이터베이스의 구조를 바꾸는 스크립트입니다"
+    else:
+        query = (payload.get("tool_input") or {}).get("query") or ""
+        is_read_only, reason = classify(query)
+        if is_read_only:
+            return 0
 
     # 사람이 허락해 둔 일회용 열쇠가 있으면 이번 한 번만 통과시킨다.
     if consume_unlock():
@@ -178,7 +203,7 @@ def main() -> int:
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason": (
-                f"읽기 전용 쿼리가 아닙니다 — {reason}. "
+                f"{reason}. "
                 "데이터베이스의 데이터나 구조를 바꾸는 쿼리는 사용자의 허락 없이 실행할 수 없습니다. "
                 f"사용자가 승인했다면 열쇠 파일({UNLOCK_FILENAME})을 만든 뒤 다시 실행하십시오. "
                 "열쇠는 한 번 쓰면 사라집니다."
