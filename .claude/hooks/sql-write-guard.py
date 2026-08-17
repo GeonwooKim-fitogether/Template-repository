@@ -43,6 +43,32 @@ Claude Code 의 권한 판정에는 세 가지가 있습니다. `allow`(통과) 
 그래서 이 훅은 `ask` 가 아니라 `deny` 를 냅니다. 이 환경에서 실제로 막히는
 판정이 그것뿐이기 때문입니다.
 
+## 통과도 침묵이 아니라 명시적 `allow` 로 낸다 — 확인 창이 계속 뜨던 원인
+
+처음에는 읽기 전용 쿼리에서 훅이 아무 판정도 내지 않고 물러났습니다(정상 권한
+흐름에 맡김). 설계 의도는 "허용 목록(`.claude/settings.json`)이 조회를 통과시킨다"
+였지만, 실측 결과 그 의도가 이 원격 환경에서 지켜지지 않았습니다. 허용 목록이
+main 에 들어간 지 일주일이 지난 2026-08-17 에도, claude.ai/code 대화형 세션에서는
+순수 조회(`select ...`)마다 "Allow Claude to use Execute SQL?" 확인 창이 계속
+떴습니다. 즉 **저장소에 체크인된 허용 목록만으로는 이 도구의 확인 창이 사라지지
+않습니다.**
+
+반면 훅이 내는 판정(`deny`)은 같은 세션들에서 확실히 동작하는 것이 확인돼
+있습니다. 그래서 통과시킬 때도 침묵하는 대신 **같은 채널로 명시적 `allow` 를
+출력합니다.** 훅의 `allow` 는 권한 흐름 자체를 건너뛰므로 확인 창이 뜨지 않습니다.
+
+`allow` 를 내는 경우는 두 가지뿐입니다.
+
+1. 모든 문장이 조회로 판정된 `execute_sql` 호출 — 아래 판단 기준을 전부 통과한 것.
+2. 사람이 열쇠 파일로 이미 승인한 쓰기 — 열쇠를 만든 행위가 승인이므로,
+   그 위에 확인 창을 한 번 더 띄우는 것은 중복이다.
+
+정직하게 적어 둘 한계가 하나 있습니다. 명시적 `allow` 는 확인 창이라는 마지막
+안전망까지 걷어냅니다. 그래서 "조회로 보이지만 실제로는 쓰는" 쿼리 — 예를 들어
+데이터를 바꾸는 데이터베이스 함수를 `select fn(...)` 로 부르는 경우 — 는 이 훅이
+가려내지 못한 채 통과합니다. 이것은 허용 목록으로 조회를 열어 두려던 원래 설계에도
+똑같이 있던 한계이며, 이 저장소의 함수는 전부 내부에서 만든 것이라 감수합니다.
+
 ## 그러면 정말 필요한 쓰기는 어떻게 실행하나 — 일회용 열쇠
 
 무조건 막기만 하면 정당한 작업까지 못 하게 됩니다. 그래서 사람이 허락했을 때만
@@ -175,6 +201,17 @@ def classify(query: str):
     return True, None
 
 
+def emit(decision: str, reason: str) -> None:
+    """권한 판정을 표준 출력으로 낸다. allow 는 확인 창을 건너뛰고, deny 는 실행을 막는다."""
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": decision,
+            "permissionDecisionReason": reason,
+        }
+    }, ensure_ascii=False))
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -192,24 +229,24 @@ def main() -> int:
         query = (payload.get("tool_input") or {}).get("query") or ""
         is_read_only, reason = classify(query)
         if is_read_only:
+            # 침묵(정상 권한 흐름 위임)이 아니라 명시적 allow 를 낸다.
+            # 이 원격 환경에서는 허용 목록만으로 확인 창이 사라지지 않는 것이
+            # 실측됐기 때문이다(파일 상단 설명 참조).
+            emit("allow", "읽기 전용 조회입니다 — 데이터를 바꾸지 않으므로 자동 승인합니다.")
             return 0
 
     # 사람이 허락해 둔 일회용 열쇠가 있으면 이번 한 번만 통과시킨다.
+    # 열쇠를 만든 행위가 곧 사용자의 승인이므로, 확인 창을 또 띄우지 않는다.
     if consume_unlock():
+        emit("allow", "사용자가 열어 둔 일회용 열쇠를 사용해 이번 한 번만 실행합니다. 열쇠는 지금 지워졌습니다.")
         return 0
 
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": (
-                f"{reason}. "
-                "데이터베이스의 데이터나 구조를 바꾸는 쿼리는 사용자의 허락 없이 실행할 수 없습니다. "
-                f"사용자가 승인했다면 열쇠 파일({UNLOCK_FILENAME})을 만든 뒤 다시 실행하십시오. "
-                "열쇠는 한 번 쓰면 사라집니다."
-            ),
-        }
-    }, ensure_ascii=False))
+    emit("deny", (
+        f"{reason}. "
+        "데이터베이스의 데이터나 구조를 바꾸는 쿼리는 사용자의 허락 없이 실행할 수 없습니다. "
+        f"사용자가 승인했다면 열쇠 파일({UNLOCK_FILENAME})을 만든 뒤 다시 실행하십시오. "
+        "열쇠는 한 번 쓰면 사라집니다."
+    ))
     return 0
 
 
