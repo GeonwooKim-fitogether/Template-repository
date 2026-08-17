@@ -3,9 +3,10 @@
 
 실행: python3 .claude/hooks/sql-write-guard.test.py
 
-두 방향을 모두 본다. 조회는 통과해야 하고(통과하지 않으면 확인 창이 계속 떠서
-훅을 넣은 의미가 없다), 데이터를 바꾸는 쿼리는 반드시 걸려야 한다(걸리지 않으면
-훅이 있으나 마나다).
+두 방향을 모두 본다. 조회는 명시적 allow 로 통과해야 하고(침묵하면 확인 창이
+계속 떠서 훅을 넣은 의미가 없다 — 실측: 허용 목록만으로는 확인 창이 사라지지
+않았다), 데이터를 바꾸는 쿼리는 반드시 걸려야 한다(걸리지 않으면 훅이 있으나
+마나다).
 """
 
 import importlib.util
@@ -95,12 +96,15 @@ def decision_of(out: str):
 def check_hook_output() -> int:
     failures = 0
 
+    # 조회는 침묵이 아니라 명시적 allow 를 내야 한다. 침묵하면 정상 권한 흐름으로
+    # 넘어가는데, 이 원격 환경에서는 그 흐름이 허용 목록을 무시하고 확인 창을
+    # 띄우는 것이 실측됐기 때문이다.
     out = run_hook({
         "tool_name": "mcp__Supabase__execute_sql",
         "tool_input": {"query": "select 1;"},
     })
-    if out:
-        print(f"  [실패] 조회인데 훅이 무언가를 출력했다: {out}")
+    if decision_of(out) != "allow":
+        print(f"  [실패] 조회의 판정이 allow 가 아니다: {out!r}")
         failures += 1
 
     out = run_hook({
@@ -111,7 +115,7 @@ def check_hook_output() -> int:
         print(f"  [실패] 삭제 쿼리의 판정이 deny 가 아니다: {out!r}")
         failures += 1
 
-    # 다른 도구의 호출에는 참견하지 않아야 한다
+    # 다른 도구의 호출에는 참견하지 않아야 한다 — allow 도 deny 도 내지 않는다
     out = run_hook({
         "tool_name": "Bash",
         "tool_input": {"command": "delete from item"},
@@ -148,8 +152,10 @@ def check_unlock() -> int:
         "tool_name": "mcp__Supabase__execute_sql",
         "tool_input": {"query": "delete from item;"},
     })
-    if out:
-        print(f"  [실패] 열쇠가 있는데도 막혔다: {out}")
+    # 열쇠를 소비한 통과도 명시적 allow 다. 열쇠를 만든 행위가 곧 승인이므로
+    # 확인 창을 또 띄우지 않기 위해서다.
+    if decision_of(out) != "allow":
+        print(f"  [실패] 열쇠가 있는데도 allow 가 아니다: {out!r}")
         failures += 1
     if key.exists():
         print("  [실패] 열쇠를 쓰고도 파일이 남아 있다 — 일회용이 아니다")
@@ -173,7 +179,7 @@ if __name__ == "__main__":
     if total:
         print(f"\n실패 {total}건")
         sys.exit(1)
-    print(f"✓ 통과 — 조회 {len(SHOULD_PASS)}건은 그대로 지나가고, "
+    print(f"✓ 통과 — 조회 {len(SHOULD_PASS)}건은 확인 창 없이 자동 승인되고, "
           f"쓰기 {len(SHOULD_DENY)}건은 모두 차단됐으며, "
           f"마이그레이션은 내용과 무관하게 차단되고, "
           f"열쇠는 한 번만 통했습니다.")
