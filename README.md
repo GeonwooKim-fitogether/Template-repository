@@ -39,6 +39,7 @@ FITogether 팀의 **Claude Code 공용 자산 창고 + 새 프로젝트 템플�
 | `claude-video` | 영상을 빠르게 분석·요약·질의응답 (채팅, 파일 없음) |
 | `claude-video-learning` | 영상을 **교육자료**로 — 영상별 폴더에 가로 PDF + 인터랙티브 HTML, 핵심 도식을 벡터(SVG)로 재구성 |
 | `design-taste-frontend` | 안티슬롭 프론트엔드 — 브리핑을 읽고 방향을 정해 '템플릿 티' 없는 랜딩·포트폴리오·리디자인을 생성 (커뮤니티 Taste 스킬) |
+| `domain-review` | **감수(監修)** — 그 분야를 잘 모르는 팀이 만든 설계·화면·데이터 모델·하드웨어 변경을 그 도메인의 **문서화된 근거**에 대조해 검토한다. 저장소의 도메인 프로필(`docs/domains/*.md`)에서 근거 코퍼스·불변식·자주 틀리는 지점을 읽어, 네 등급(위반·관행 이탈 의심·공백·확인 불가) 장부를 남긴다. **근거를 인용하지 않은 관찰은 위반으로 올릴 수 없다** — 프로필 항목의 근거 등급이 판정 상한을 정해, 그럴듯하지만 근거 없는 훈수가 확정 판정으로 승격하는 것을 막는다. 프로필 서식은 [`profile-template.md`](.claude/skills/domain-review/reference/profile-template.md) |
 | `drbfm-qa` | 개정 전/후 스키매틱을 비교해 변경점을 도출하고 FITogether 표준 양식(개선 내용 정의 + As Is/To Be 회로도 + CheckList 11항목 자동 점검)의 DRBFM-QA HTML 생성 |
 | `find-skill` | 목적에 맞는 스킬을 카탈로그에서 찾아줌 |
 | `firmware-map` | 펌웨어/임베디드 C 코드베이스를 인터랙티브 HTML로 시각화 |
