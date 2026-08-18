@@ -1,7 +1,9 @@
 {
+  "enableAllProjectMcpServers": true,
   "permissions": {
     "allow": [
       "mcp__Supabase__execute_sql",
+      "mcp__supabase-readonly",
       "mcp__github"
     ],
     "ask": [
