@@ -9,6 +9,8 @@ name: FITogether 스킬·규칙·에이전트·커맨드·워크플로 동기화
 # - .claude/agents/    : 공용 서브에이전트 (예: doc-clarifier — 안 읽히는 md를 다시 써 주는 편집자)
 # - .claude/commands/  : 공용 슬래시 커맨드 (예: /orchestrate·/sysreport·/pr-gate — 시스템층 지휘)
 # - .claude/workflows/ : 공용 워크플로 (예: kimlead-verified·system-sweep — 결정론적 검증·감사)
+# - .claude/hooks/     : 공용 훅 (예: sql-write-guard.py — SQL 쓰기를 승인 전까지 막는 장치).
+#   규칙 문서와 짝이라 반드시 함께 내려간다. 규칙만 오면 강제하는 것이 없다.
 # - .claude/settings.json 의 permissions.allow : 공용 도구 허용 목록
 #   (예: Supabase 의 execute_sql — 매번 권한 창을 띄우지 않고 바로 실행하게 하는 규칙).
 #   이 파일만은 통째로 덮어쓰지 않고 permissions.allow 칸만 합집합으로 합친다. 이유는 아래 주석 참고.
@@ -70,8 +72,22 @@ jobs:
           if [ -d .skills-src/.claude/workflows ]; then
             cp -a .skills-src/.claude/workflows/. .claude/workflows/
           fi
+          # 훅(.claude/hooks/)은 규칙과 짝이라 반드시 함께 내려와야 한다.
+          #
+          # 규칙 문서는 사람과 에이전트가 읽어야 작동하지만, 훅은 도구 호출을 실제로
+          # 가로막는 장치다. 규칙만 내려오고 훅이 안 오면 이 repo 에는 "이렇게 하기로
+          # 했다"는 글만 남고 강제하는 것은 아무것도 없다. 실제로 창고의
+          # db-write-permission.md(데이터베이스 쓰기 규칙)가 그 상태였다 — 규칙은
+          # 내려왔는데 그것을 강제하는 sql-write-guard.py 는 창고에만 있었다.
+          #
+          # cp -a 는 실행 권한을 함께 보존한다. 훅은 실행 파일이라 이 비트가 없으면
+          # 조용히 실행되지 않는다.
+          if [ -d .skills-src/.claude/hooks ]; then
+            mkdir -p .claude/hooks
+            cp -a .skills-src/.claude/hooks/. .claude/hooks/
+          fi
 
-          # 도구 권한 규칙(.claude/settings.json 의 permissions.allow · ask · deny)만 창고 것과 합친다.
+          # 도구 권한 규칙(permissions 의 allow · ask · deny)과 훅 설정(hooks)만 창고 것과 합친다.
           #
           # 왜 덮어쓰지 않고 합치나: settings.json 은 위 다섯 폴더와 성격이 다르다.
           # 그 안에는 이 repo만의 훅 설정이나 이 repo에서 직접 추가한 규칙이 들어 있을 수
@@ -90,12 +106,22 @@ jobs:
           # 합집합이라 여러 번 돌려도 결과가 같고(멱등), 이 repo가 추가한 규칙도 살아남는다.
           # 반대로 창고에서 규칙을 지워도 이 repo 에서는 지워지지 않으므로, 규칙을 없앨 때는
           # 사람이 각 repo 에서 직접 지워야 한다.
+          #
+          # hooks 도 같은 방식으로 합친다. 이벤트(PreToolUse·SessionStart …)별로 창고의
+          # 항목을 이 repo 것에 더하고 중복은 없앤다. 훅 설정만 내려오고 스크립트 파일이
+          # 없으면 없는 파일을 부르게 되므로, 위에서 .claude/hooks/ 폴더를 먼저 복사한다.
+          # 둘은 항상 같은 실행에서 함께 내려온다.
           if [ -f .skills-src/.claude/settings.json ]; then
             [ -f .claude/settings.json ] || echo '{}' > .claude/settings.json
             jq -s '
               .[0] as $mine
               | .[1] as $warehouse
               | ["allow", "ask", "deny"] as $keys
+              | (
+                  reduce (($warehouse.hooks // {}) | keys_unsorted[]) as $event
+                    (($mine.hooks // {});
+                     .[$event] = (((.[$event] // []) + $warehouse.hooks[$event]) | unique))
+                ) as $hooks
               | $mine
               | .permissions = ((.permissions // {}) + (
                   $keys
@@ -106,6 +132,7 @@ jobs:
                   | map(select(.value | length > 0))
                   | from_entries
                 ))
+              | if ($hooks | length) > 0 then .hooks = $hooks else . end
             ' .claude/settings.json .skills-src/.claude/settings.json > .claude/settings.json.tmp
             mv .claude/settings.json.tmp .claude/settings.json
           fi
@@ -114,10 +141,10 @@ jobs:
 
       - name: 변경 사항 커밋 (있을 때만)
         run: |
-          if [ -n "$(git status --porcelain .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/settings.json)" ]; then
+          if [ -n "$(git status --porcelain .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/hooks .claude/settings.json)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/settings.json
+            git add .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/hooks .claude/settings.json
             git commit -m "chore: FITogether 스킬·규칙·에이전트·커맨드·워크플로·허용목록 동기화 [skip ci]"
             git push
           else
