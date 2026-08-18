@@ -101,6 +101,43 @@ Publish with the Artifact tool (favicon `🔧`) and give the link. If working in
 to `prototypes/<model>-understand.html`, then commit + push to the working branch. Keep prose in chat,
 not in the HTML.
 
+## Engine contracts (measured — break these and the page renders blank)
+
+These are requirements the fixed engine puts on **your data**, and none of them were written down until
+LHP3-1C (Live Hub LTE, 2026-08-18) hit all four in one sitting. The failure mode is what makes them
+worth listing: the file is generated at a normal size and the run log says `blocks: N edges: M`, but the
+page is empty or one level is dead. Size and logs cannot tell you.
+
+- **The hub block's id must be `mcu`.** The engine hardcodes `const CENTER='mcu'` and gives that id a
+  bigger node and its own CSS. On a board whose brain is not an MCU (a carrier board, a passive break-out),
+  still key the hub `mcu` and put the real name in `B[id][0]` — the name is free text, the id is a contract.
+  Otherwise `select()` throws `Cannot read properties of undefined (reading 'g')` and no node renders.
+- **`BC`/`BLAB` must define all eight standard bus keys** (`PWR I2C SPI UART SDIO RF USB CTRL`). The legend
+  iterates that fixed list, so a missing key is a `KeyError` at generation time. Bus keys never appear on
+  screen — only `BLAB` labels do — so when a product's buses differ, map them onto the standard keys and
+  write the labels for the product (e.g. key `SDIO` labelled `이더넷 페어`, key `RF` labelled `SIM 인터페이스`).
+  Adding non-standard keys works for edges but leaves them out of the legend.
+- **Every `PART_SPEC` entry needs `absmax`, `op` and `key`** (an empty list is fine — do not invent values).
+  `specCard()` maps all three unconditionally, so a missing one throws `Cannot read properties of undefined
+  (reading 'map')` **only when L3 opens.** L0~L2 look perfect, which is why this one hides. Three lines at
+  the end of `hw_data.py` close it:
+  ```python
+  for _toks, _spec in PART_SPEC:
+      for _k in ('absmax', 'op', 'key'):
+          _spec.setdefault(_k, [])
+  ```
+- **`extract_parts.py`'s `REF`/`FOOTP` cover `U R C L D Q Y SW CON ANT NR J E MP` only.** Boards using other
+  prefixes (`MN` MOSFET, `TVS`, `EC` electrolytic, `FB` bead, `T` transformer, `TP` test point, `LED`) need
+  them added — and each prefix also needs its footprint pattern in `FOOTP`, or the part is treated as a pin
+  name and dropped. Widening `T` has one side effect: IC pin names like MP8009's `T2P` get picked up as
+  parts. Drop those in the data (`_auto[block] = [p for p in _auto[block] if p[0] != 'T2P']`), not in the
+  engine.
+
+One more thing that is not a contract but costs an hour if you learn it the hard way: **read part values
+from the schematic's line order, not from coordinates.** Picking "the nearest word below the RefDes" grabs
+pin names; splitting the sheet text into lines and taking the line after the RefDes was nearly always right
+(120 of ~120 parts on a 6-sheet board, versus a badly polluted map from the coordinate method).
+
 ## Notes
 - The engine writes `SHTITLE` from `META['sheet_titles']`; blocks with no crop gracefully fall back to
   the full sheet (or hide the image). CLBY-2A (image-less blocks) is handled the same way.
