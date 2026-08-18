@@ -19,6 +19,7 @@
 // ── 이 스크립트가 하지 않는 것 (정직하게) ─────────────────────────────────
 // 판단이 필요한 것은 여기서 하지 않는다. 대신 "사람이 봐야 함" 으로 표시한다.
 //   · 축 C 의 "이것이 계약 자체를 바꾸는 변경인가, 파트 내부 변경인가"
+//     (단 함수에 대해서는 축 C-2 가 "같은 함수를 다른 갈래가 방금 바꿨는가" 를 기계로 잡는다)
 //   · 축 A 의 "UI 재설계가 시안의 수용 기준에 맞는가"
 //   · 발견된 것의 심각도를 문맥에 비추어 가늠하는 일
 //
@@ -202,11 +203,112 @@ const backticked = (s) => [...s.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
         "human",
         `공유물 \`${id}\` 을 건드립니다 — 계약 변경인지 사람이 판단해야 합니다`,
         `소비자: ${v.consumers.replace(/\*\*/g, "").slice(0, 300)}\n건드린 곳: ${[...v.files].slice(0, 5).map((f) => `\`${f}\``).join(" · ")}\n` +
-          `파트 내부 변경이면 팀 재량이고, **계약 자체를 바꾸는 변경**(컬럼 의미·토큰 값·공용 컴포넌트 인터페이스)이면 총괄 승인이 필요합니다.`,
+          `파트 내부 변경이면 팀 재량이고, **계약 자체를 바꾸는 변경**(컬럼 의미·토큰 값·공용 컴포넌트 인터페이스)이면 총괄 승인이 필요합니다.\n` +
+          `이 계약이 데이터베이스 함수라면 이 질문만으로는 부족합니다 — 축 C-2 가 "같은 함수를 다른 갈래가 방금 바꿨는가"를 따로 묻습니다.`,
       );
     }
     if (contracts.length === 0) {
       skipped.push(`축 C — \`${REG}\` 에서 계약 표를 파싱하지 못했습니다(형식이 다를 수 있음).`);
+    }
+  }
+}
+
+// ── 축 C-2 — 같은 함수를 다른 갈래가 방금 바꿨나 (되돌림 탐지) ────────────────
+//
+// ## 왜 이 검사가 따로 있나 — 걸리고도 놓친 실패에서 나왔다
+//
+// 2026-08-18 에 두 세션이 척추 함수 `make_change_effective` 를 13분 차이로 고쳤고, 나중
+// 적용이 앞의 것을 통째로 삼켰다. 그런데 **축 C 는 이미 걸렸다.** 그 함수가 계약
+// 레지스트리에 등재돼 있어 "사람 판단 필요"로 올라갔다. 놓친 이유는 검사가 없어서가
+// 아니라 **걸리고도 다른 것을 물어서**였다.
+//
+//   축 C 가 붙인 질문   "이것이 계약 자체를 바꾸는 변경인가, 파트 내부 변경인가"
+//   그때의 답            "아니오, 출처를 이월할 뿐이다"  → 통과
+//   물어야 했던 질문     "같은 함수를 다른 누군가가 방금 바꿨는가"
+//
+// 두 질문은 다르다. 앞의 것은 **무엇을 바꾸는가**를 묻고, 뒤의 것은 **무엇 위에
+// 얹는가**를 묻는다. `create or replace function` 은 앞의 정의 위에 얹는 것이 아니라
+// 통째로 지우고 새로 쓰므로, 전제가 낡았으면 남의 변경이 조용히 사라진다.
+//
+// ## 왜 git 도 옆 검사도 잡지 못하나
+//
+// 두 마이그레이션은 **이름이 다른 별개 파일**이라 텍스트 충돌이 없다. 그래서 git 은
+// 조용히 둘 다 받아들이고, `번호 충돌 방지` 검사도 파일 이름만 보므로 통과시킨다.
+// 함수는 이름이 하나이고 모든 마이그레이션이 그 하나를 덮어쓴다는 점이 이 축을
+// 파일명 규칙과 다른 별개의 위험으로 만든다.
+//
+// ## 무엇을 재나
+//
+// 이 PR 이 재정의하는 함수와, **base(보통 main)가 분기점 이후 재정의한 함수**를 대조한다.
+// 겹치면 이 PR 의 본문이 낡은 정의 위에 쓰였을 수 있다는 뜻이므로 사람에게 올린다.
+//
+// 이 검사가 못 하는 것도 적어 둔다. **저장소에 아예 push 되지 않은 변경은 볼 수 없다** —
+// 사고 당시 07:13 세션의 파일이 정확히 그 상태였다. 그 구멍은 훅의 "적용 전 push 판정"과
+// 마이그레이션 안의 지문 잠금 블록이 메운다(`scripts/function-guard.mjs`).
+{
+  const MIG = "supabase/migrations/";
+  const fnRe = /create\s+or\s+replace\s+function\s+([A-Za-z_][\w.]*)\s*\(/gi;
+  const norm = (n) => (n.includes(".") ? n : `public.${n}`).toLowerCase();
+  const fnsIn = (sql) => {
+    const code = sql.split("\n").filter((l) => !/^\s*--/.test(l)).join("\n");
+    return [...new Set([...code.matchAll(fnRe)].map((m) => norm(m[1])))];
+  };
+
+  const ourMigrations = changed.filter((f) => f.startsWith(MIG) && f.endsWith(".sql") && !f.includes("/rollback/"));
+  const ours = new Map(); // 함수 → 이 PR 에서 그것을 건드린 파일들
+  for (const f of ourMigrations) {
+    let sql = "";
+    try {
+      sql = readFileSync(f, "utf8");
+    } catch {
+      continue;
+    }
+    for (const fn of fnsIn(sql)) {
+      if (!ours.has(fn)) ours.set(fn, new Set());
+      ours.get(fn).add(f);
+    }
+  }
+
+  if (ours.size) {
+    const mergeBase = sh(`git merge-base ${BASE} HEAD`).trim();
+    if (!mergeBase) {
+      skipped.push(`축 C-2 — \`${BASE}\` 와의 분기점을 찾지 못해 건너뛰었습니다(원격을 fetch 했는지 확인하십시오).`);
+    } else {
+      // base 가 분기점 이후 건드린 마이그레이션 파일들
+      const baseSide = sh(`git diff --name-only ${mergeBase} ${BASE} -- ${MIG}`)
+        .split("\n")
+        .filter((f) => f.endsWith(".sql") && !f.includes("/rollback/"));
+
+      const theirs = new Map(); // 함수 → base 쪽에서 그것을 건드린 파일들
+      for (const f of baseSide) {
+        const sql = sh(`git show ${BASE}:${JSON.stringify(f).slice(1, -1)} 2>/dev/null`);
+        if (!sql) continue;
+        for (const fn of fnsIn(sql)) {
+          if (!theirs.has(fn)) theirs.set(fn, new Set());
+          theirs.get(fn).add(f);
+        }
+      }
+
+      for (const [fn, ourFiles] of ours) {
+        if (!theirs.has(fn)) continue;
+        add(
+          "C",
+          "human",
+          `\`${fn}\` 을 **${BASE} 도 분기점 이후 바꿨습니다** — 이 PR 의 정의가 낡은 것 위에 쓰였을 수 있습니다`,
+          `이 PR 이 건드린 곳: ${[...ourFiles].map((f) => `\`${f}\``).join(" · ")}\n` +
+            `${BASE} 가 건드린 곳: ${[...theirs.get(fn)].map((f) => `\`${f}\``).join(" · ")}\n` +
+            `\n` +
+            `**물어야 하는 것은 "이것이 계약을 바꾸는가"가 아니라 "무엇 위에 얹는가"입니다.** ` +
+            `create or replace function 은 앞의 정의 위에 얹는 것이 아니라 통째로 지우고 새로 쓰므로, ` +
+            `전제가 낡았으면 상대의 변경이 오류 없이 사라집니다. 두 마이그레이션은 이름이 다른 별개 ` +
+            `파일이라 git 도 이 충돌을 보지 못합니다.\n` +
+            `\n` +
+            `확인할 것 둘. 첫째, 이 PR 의 함수 본문을 **라이브의 현재 본문(pg_proc.prosrc)** 을 읽어 ` +
+            `그 위에 얹었는지. 저장소의 마지막 마이그레이션이 아니라 라이브가 기준입니다. 둘째, 그 ` +
+            `마이그레이션에 **지문 잠금 블록**이 있는지 — 없으면 ` +
+            `\`node scripts/function-guard.mjs --emit ${fn}\` 으로 서식을 받아 넣으십시오.`,
+        );
+      }
     }
   }
 }

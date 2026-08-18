@@ -126,14 +126,86 @@ def check_hook_output() -> int:
 
     # 마이그레이션은 내용과 무관하게 전부 막혀야 한다. 읽기만 하는 SQL 을 담아도
     # 마이그레이션으로 적용하는 행위 자체가 데이터베이스를 바꾸기 때문이다.
+    #
+    # 이름을 **실제로 push 된 파일**로 쓴다. 존재하지 않는 이름을 쓰면 이제 적용 전 push
+    # 판정에 먼저 걸려서, 이 시험이 재려는 "내용 무관 차단"이 아니라 다른 이유로 통과한다.
+    # 두 원인이 섞이면 한쪽이 고장나도 초록불이 켜진다.
+    pushed = pushed_migration_name()
     for query in ("alter table item add column foo text;", "select 1;"):
         out = run_hook({
             "tool_name": "mcp__Supabase__apply_migration",
-            "tool_input": {"name": "20260809000000_probe", "query": query},
+            "tool_input": {"name": pushed, "query": query},
         })
         if decision_of(out) != "deny":
             print(f"  [실패] 마이그레이션이 막히지 않았다 ({query!r}): {out!r}")
             failures += 1
+        if pushed and "적용 전 push 판정" in reason_of(out):
+            print(f"  [실패] push 된 파일인데 push 판정에 걸렸다: {out!r}")
+            failures += 1
+
+    return failures
+
+
+def reason_of(out: str) -> str:
+    try:
+        return json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+    except Exception:
+        return ""
+
+
+def pushed_migration_name():
+    """실제로 커밋·push 된 마이그레이션 하나의 이름(.sql 제외)을 찾는다.
+
+    없으면 None 을 돌려주고, 그것을 쓰는 시험은 건너뛴다. 이 시험 파일이 원격 없는
+    복제본에서도 돌아야 하기 때문이다.
+    """
+    root = pathlib.Path(guard.repo_root())
+    mig = root / "supabase" / "migrations"
+    if not mig.is_dir():
+        return None
+    for f in sorted(mig.glob("*.sql"), reverse=True):
+        name = f.stem
+        state, _ = guard.migration_push_state(name)
+        if state == "pushed":
+            return name
+    return None
+
+
+def check_push_gate() -> int:
+    """적용 전 push 판정 — 2026-08-18 되돌림 사고의 원인 절반을 막는 쪽."""
+    failures = 0
+
+    # ① 저장소에 파일이 없는 이름으로 적용하면 막혀야 한다. 적용 이력에는 이름이 박히는데
+    #    저장소에 파일이 없으면 다음 사람이 무엇이 적용됐는지 확인할 방법이 없다(고아).
+    out = run_hook({
+        "tool_name": "mcp__Supabase__apply_migration",
+        "tool_input": {"name": "29990101000000_does_not_exist", "query": "select 1;"},
+    })
+    if decision_of(out) != "deny" or "적용 전 push 판정" not in reason_of(out):
+        print(f"  [실패] 저장소에 없는 마이그레이션이 push 판정에 걸리지 않았다: {out!r}")
+        failures += 1
+
+    # ② 그 판정은 **열쇠로 넘어갈 수 없어야** 한다. push 여부는 사용자의 승인으로 대체될 수
+    #    없다 — 승인하든 안 하든, push 하지 않고 적용하면 다음 세션이 그것을 볼 방법이 없다.
+    key = pathlib.Path(guard.unlock_path())
+    if key.exists():
+        print("  [건너뜀] 열쇠 파일이 이미 있어 ② 는 돌리지 않는다")
+    else:
+        key.write_text("시험용 열쇠\n")
+        try:
+            out = run_hook({
+                "tool_name": "mcp__Supabase__apply_migration",
+                "tool_input": {"name": "29990101000000_does_not_exist", "query": "select 1;"},
+            })
+            if decision_of(out) != "deny":
+                print(f"  [실패] 열쇠로 push 판정을 넘어갔다: {out!r}")
+                failures += 1
+            if not key.exists():
+                print("  [실패] push 판정에 막혔는데 열쇠가 소비됐다 — 열쇠는 남아 있어야 한다")
+                failures += 1
+        finally:
+            if key.exists():
+                key.unlink()
 
     return failures
 
@@ -175,11 +247,12 @@ def check_unlock() -> int:
 
 
 if __name__ == "__main__":
-    total = check_classify() + check_hook_output() + check_unlock()
+    total = check_classify() + check_hook_output() + check_unlock() + check_push_gate()
     if total:
         print(f"\n실패 {total}건")
         sys.exit(1)
     print(f"✓ 통과 — 조회 {len(SHOULD_PASS)}건은 확인 창 없이 자동 승인되고, "
           f"쓰기 {len(SHOULD_DENY)}건은 모두 차단됐으며, "
           f"마이그레이션은 내용과 무관하게 차단되고, "
-          f"열쇠는 한 번만 통했습니다.")
+          f"열쇠는 한 번만 통했으며, "
+          f"push 되지 않은 마이그레이션은 열쇠로도 넘어가지 못했습니다.")

@@ -17,7 +17,7 @@ Supabase 의 SQL 실행 도구(`execute_sql`)는 권한 목록에서 통째로 �
 | 도구 | 하는 일 | 이 훅의 처리 |
 |---|---|---|
 | `execute_sql` | 조회와 쓰기가 한 도구에 섞여 있다 | 쿼리문을 읽어 **가린다.** 조회면 통과, 쓰기면 차단 |
-| `apply_migration` | 데이터베이스 구조를 바꾸는 스크립트를 적용한다 | 가릴 것이 없다. **전부 쓰기**이므로 내용과 무관하게 차단 |
+| `apply_migration` | 데이터베이스 구조를 바꾸는 스크립트를 적용한다 | 두 단계다. 먼저 그 파일이 **push 됐는지** 보고 아니면 열쇠와 무관하게 차단한다. push 됐으면 그다음은 전부 쓰기이므로 열쇠를 요구한다 |
 
 `apply_migration` 을 함께 보는 이유는 실제 사고에서 나왔습니다. 한 세션이 이 도구를
 여섯 번 불러 라이브 데이터베이스를 바꿨는데, 그 도구는 허용 목록에도 없고 이 훅도
@@ -116,6 +116,7 @@ main 에 들어간 지 일주일이 지난 2026-08-17 에도, claude.ai/code 대
 import json
 import os
 import re
+import subprocess
 import sys
 
 # 조회를 여는 단어. 문장이 이 중 하나로 시작하지 않으면 통과시키지 않는다.
@@ -165,6 +166,93 @@ def consume_unlock() -> bool:
         return False
     except OSError:
         return False
+
+
+def repo_root() -> str:
+    """훅 파일 위치를 기준으로 저장소 뿌리를 잡는다(.claude/hooks/ 의 두 단계 위)."""
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def git(*args):
+    """git 을 조용히 돌린다. 실패하면 None — '잴 수 없다'와 '재서 아니다'를 가르기 위해서다."""
+    try:
+        out = subprocess.run(
+            ("git",) + args,
+            cwd=repo_root(),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return out.stdout.strip()
+
+
+def migration_push_state(name: str):
+    """마이그레이션 파일이 origin 에 push 돼 있는지 본다.
+
+    돌려주는 값은 (판정, 설명) 이고 판정은 셋 중 하나다.
+
+        "pushed"    파일이 커밋돼 있고 그 커밋이 원격에서 닿는다 — 적용해도 좋다
+        "unpushed"  파일이 없거나, 수정이 커밋되지 않았거나, 커밋이 원격에 없다 — 막는다
+        "unknown"   git 이 없거나 원격이 없어 잴 수 없다 — 막지 않고 그 사실만 알린다
+
+    ## 왜 이것을 보나 (2026-08-18 실제 사고)
+
+    한 세션이 발효 함수의 결함 넷을 고쳐 라이브에 적용했는데 **그 파일을 push 하지
+    않았다.** 13분 뒤 다른 세션이 같은 함수를 고치면서 저장소만 보고 본문을 썼고,
+    `create or replace` 가 앞의 수정을 통째로 되돌렸다. push 돼 있었다면 뒤 세션이
+    그 파일을 보고 위에 얹었을 것이다. 즉 **적용 전 push 는 예의가 아니라 다른
+    세션이 내 변경을 읽을 수 있게 만드는 유일한 통로**다.
+
+    ## 왜 열쇠로 넘어갈 수 없게 했나
+
+    열쇠(`sql-write-unlock`)는 "사용자가 이 SQL 을 보고 승인했다"를 뜻한다. 그런데
+    push 여부는 사용자가 승인으로 대체할 수 있는 성질의 것이 아니다 — 승인하든 안 하든,
+    push 하지 않은 채 적용하면 다음 세션이 그것을 볼 방법이 없다. 그래서 이 판정은
+    열쇠보다 **앞에** 두고 열쇠로 열리지 않게 했다. 막힌 쪽은 push 한 뒤 다시 부르면
+    그대로 통과한다.
+
+    ## "잴 수 없으면 막지 않는다" — 이 하나만 예외로 둔 이유
+
+    이 파일의 다른 판정은 애매하면 차단으로 간다. 여기서만 반대로 한 것은, git 이 없는
+    환경에서 차단하면 **되돌림과 무관한 정상 작업이 영구히 막히기** 때문이다. 대신
+    "재지 못했다"는 사실을 판정 이유에 실어 침묵하지 않는다.
+    """
+    if not name:
+        return "unknown", "마이그레이션 이름이 비어 있어 대응하는 파일을 찾을 수 없었습니다"
+
+    rel = os.path.join("supabase", "migrations", f"{name}.sql")
+    if git("rev-parse", "--git-dir") is None:
+        return "unknown", "git 저장소가 아니거나 git 을 쓸 수 없어 push 여부를 재지 못했습니다"
+
+    if not os.path.exists(os.path.join(repo_root(), rel)):
+        return "unpushed", (
+            f"넘긴 이름에 대응하는 파일 `{rel}` 이 저장소에 없습니다. "
+            "적용 이력에는 이 이름이 박히는데 저장소에는 파일이 없으면, 다음 사람이 "
+            "무엇이 적용됐는지 확인할 방법이 없습니다(고아 마이그레이션)"
+        )
+
+    dirty = git("status", "--porcelain", "--", rel)
+    if dirty:
+        return "unpushed", f"`{rel}` 에 커밋하지 않은 변경이 있습니다 — 적용하는 내용과 저장소의 내용이 갈립니다"
+
+    commit = git("log", "-1", "--format=%H", "--", rel)
+    if not commit:
+        return "unpushed", f"`{rel}` 이 아직 커밋되지 않았습니다"
+
+    remotes = git("branch", "-r", "--contains", commit)
+    if remotes is None:
+        return "unknown", f"`{rel}` 의 커밋이 원격에 있는지 재지 못했습니다"
+    if not remotes.strip():
+        return "unpushed", (
+            f"`{rel}` 은 커밋됐지만 그 커밋({commit[:8]})이 원격 어디에도 없습니다 — "
+            "아직 push 되지 않았습니다"
+        )
+
+    return "pushed", f"`{rel}` 이 원격에 있습니다 ({remotes.split()[0]})"
 
 
 def strip_noise(sql: str) -> str:
@@ -224,7 +312,28 @@ def main() -> int:
         return 0
 
     if tool == MIGRATION_TOOL:
-        reason = "마이그레이션은 데이터베이스의 구조를 바꾸는 스크립트입니다"
+        # 열쇠보다 **앞에** 두는 판정. 열쇠는 "사용자가 이 SQL 을 승인했다"를 뜻하는데,
+        # push 여부는 승인으로 대체될 수 없다 — push 하지 않고 적용하면 다음 세션이 그
+        # 변경을 볼 방법이 아예 없기 때문이다. 2026-08-18 되돌림 사고의 원인 절반이 이것이다.
+        name = (payload.get("tool_input") or {}).get("name") or ""
+        state, detail = migration_push_state(name)
+        if state == "unpushed":
+            emit("deny", (
+                f"적용 전 push 판정에 걸렸습니다 — {detail}. "
+                "마이그레이션은 라이브에 적용하기 **전에** 파일을 커밋하고 push 해야 합니다. "
+                "2026-08-18 에 한 세션이 발효 함수의 결함 넷을 고쳐 적용하면서 파일을 push 하지 "
+                "않았고, 13분 뒤 다른 세션이 저장소만 보고 같은 함수를 고쳐 그 수정을 통째로 "
+                "되돌렸습니다. push 는 다른 세션이 내 변경을 읽을 수 있게 하는 유일한 통로입니다. "
+                "이 판정은 열쇠로 넘어갈 수 없습니다 — push 한 뒤 다시 실행하십시오."
+            ))
+            return 0
+        if state == "unknown":
+            reason = (
+                "마이그레이션은 데이터베이스의 구조를 바꾸는 스크립트입니다"
+                f" (참고: 적용 전 push 여부를 재지 못했습니다 — {detail})"
+            )
+        else:
+            reason = "마이그레이션은 데이터베이스의 구조를 바꾸는 스크립트입니다"
     else:
         query = (payload.get("tool_input") or {}).get("query") or ""
         is_read_only, reason = classify(query)
