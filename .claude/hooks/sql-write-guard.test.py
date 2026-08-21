@@ -234,14 +234,38 @@ def check_unlock() -> int:
         failures += 1
         key.unlink()
 
-    # 같은 쿼리를 한 번 더 — 이번에는 열쇠가 없으므로 막혀야 한다
+    # 열쇠 직후의 **재판정 한 번**은 통과해야 한다.
+    #
+    # 왜 통과가 정답인가. 원격 실행 환경에서는 한 번의 도구 호출에 이 훅이 두 번 발동한다
+    # (2026-08-20 실측 — 세 번 재현). 일회용 열쇠만 두면 첫 발동이 열쇠를 소진하고 두 번째
+    # 발동이 열쇠를 못 찾아 차단하며, 그 차단이 최종 판정으로 남아 **승인이 있어도 쓰기가
+    # 영영 통하지 않았다.** 그래서 열쇠를 쓸 때 영수증을 남기고 바로 다음 재판정 한 번만
+    # 통과시킨다.
+    out = run_hook({
+        "tool_name": "mcp__Supabase__execute_sql",
+        "tool_input": {"query": "delete from item;"},
+    })
+    if decision_of(out) != "allow":
+        print(f"  [실패] 열쇠 직후의 재판정이 막혔다 — 훅의 이중 발동을 견디지 못한다: {out!r}")
+        failures += 1
+
+    # 세 번째는 막혀야 한다 — 영수증은 위 재판정에서 소비됐다.
+    # 이것이 느슨해진 만큼을 되받는 자리다. 재사용이 한 번을 넘으면 승인 하나가 여러 쓰기로
+    # 번지므로, 여기서 deny 가 나오지 않으면 장치의 뜻이 무너진다.
     out = run_hook({
         "tool_name": "mcp__Supabase__execute_sql",
         "tool_input": {"query": "delete from item;"},
     })
     if decision_of(out) != "deny":
-        print(f"  [실패] 열쇠를 쓴 뒤에도 계속 통과한다: {out!r}")
+        print(f"  [실패] 영수증이 두 번 이상 쓰인다 — 재사용은 한 번이어야 한다: {out!r}")
         failures += 1
+
+    # 찌꺼기를 남기지 않는다. 영수증이 남아 있으면 그것 자체가 유효한 승인 상태다.
+    receipt = pathlib.Path(guard.receipt_path())
+    if receipt.exists():
+        print("  [실패] 영수증이 남아 있다 — 소비 뒤 지워야 한다")
+        failures += 1
+        receipt.unlink()
 
     return failures
 
@@ -254,5 +278,5 @@ if __name__ == "__main__":
     print(f"✓ 통과 — 조회 {len(SHOULD_PASS)}건은 확인 창 없이 자동 승인되고, "
           f"쓰기 {len(SHOULD_DENY)}건은 모두 차단됐으며, "
           f"마이그레이션은 내용과 무관하게 차단되고, "
-          f"열쇠는 한 번만 통했으며, "
+          f"열쇠는 재판정 한 번까지만 통했으며, "
           f"push 되지 않은 마이그레이션은 열쇠로도 넘어가지 못했습니다.")
