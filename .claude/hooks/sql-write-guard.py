@@ -113,11 +113,13 @@ main 에 들어간 지 일주일이 지난 2026-08-17 에도, claude.ai/code 대
 열쇠를 만들어야 하는 불편과, 데이터가 조용히 지워지는 사고 중에서 앞을 택했습니다.
 """
 
+import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
+import time
 
 # 조회를 여는 단어. 문장이 이 중 하나로 시작하지 않으면 통과시키지 않는다.
 READ_STARTERS = ("select", "with", "explain", "show", "values", "table")
@@ -140,6 +142,13 @@ WRITE_PATTERN = re.compile(
 
 UNLOCK_FILENAME = "sql-write-unlock"
 
+
+# 열쇠를 쓴 직후 남기는 영수증. 원격 실행 환경에서는 한 번의 도구 호출에 이 훅이 두 번
+# 발동한다(2026-08-20 실측 — 첫 발동이 열쇠를 소진하고 통과를 내지만 두 번째 발동이 열쇠를
+# 못 찾아 차단하고 그 결과가 최종으로 남았다). 그래서 같은 쿼리의 재판정만 통과시킨다.
+# 지문이 같아야 하므로 승인 한 번이 다른 쓰기로 번지지 않는다.
+RECEIPT_FILENAME = "sql-write-unlock.receipt"
+RECEIPT_TTL_SECONDS = 60
 # 이 훅이 지켜보는 도구.
 #
 # `execute_sql` 은 조회와 쓰기가 한 도구에 섞여 있어 쿼리문을 읽어 가려야 한다.
@@ -156,16 +165,58 @@ def unlock_path() -> str:
                         UNLOCK_FILENAME)
 
 
-def consume_unlock() -> bool:
-    """열쇠가 있으면 쓰고 없앤다. 썼으면 True."""
+def receipt_path() -> str:
+    """영수증 경로. 열쇠와 같은 곳에 둔다."""
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        RECEIPT_FILENAME)
+
+
+def call_fingerprint(payload: dict) -> str:
+    """이 도구 호출의 지문. 도구 이름과 입력이 같으면 같은 지문이 된다."""
+    ti = payload.get("tool_input") or {}
+    raw = "\0".join([
+        str(payload.get("tool_name") or ""),
+        str(ti.get("name") or ""),
+        str(ti.get("query") or ""),
+    ])
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def consume_unlock(fingerprint: str) -> bool:
+    """열쇠가 있으면 쓰고 영수증을 남긴다. 영수증은 바로 다음 재판정 한 번만 통과시킨다.
+
+    지문 대조를 하지 않는 이유가 있다. 원격 실행 환경에서는 한 번의 도구 호출에 이 훅이
+    두 번 발동하는데, **두 발동이 넘겨받는 입력이 서로 달라** 같은 호출인데도 지문이 갈린다
+    (2026-08-20 실측 — 지문으로 짝을 맞추려 했더니 두 번째 발동이 영수증을 남의 것으로 보고
+    버렸다). 그래서 "방금 열쇠를 썼고 아직 몇 초 안이다"만 본다.
+
+    느슨해진 만큼을 영수증 일회성으로 되받는다. 재판정에서 영수증을 그 자리에서 지우므로
+    재사용은 한 번뿐이고, 세 번째 호출이나 다른 쿼리는 다시 사용자 승인을 요구한다.
+    """
     path = unlock_path()
     try:
         os.remove(path)
-        return True
     except FileNotFoundError:
-        return False
+        try:
+            with open(receipt_path(), encoding="utf-8") as f:
+                saved_at = float(f.read().strip().split(" ")[-1])
+        except (FileNotFoundError, ValueError, OSError, IndexError):
+            return False
+        # 읽었으면 곧바로 버린다 — 재사용은 한 번이다.
+        try:
+            os.remove(receipt_path())
+        except OSError:
+            pass
+        return (time.time() - saved_at) <= RECEIPT_TTL_SECONDS
     except OSError:
         return False
+
+    try:
+        with open(receipt_path(), "w", encoding="utf-8") as f:
+            f.write(f"{fingerprint} {time.time()}")
+    except OSError:
+        pass
+    return True
 
 
 def repo_root() -> str:
@@ -346,8 +397,9 @@ def main() -> int:
 
     # 사람이 허락해 둔 일회용 열쇠가 있으면 이번 한 번만 통과시킨다.
     # 열쇠를 만든 행위가 곧 사용자의 승인이므로, 확인 창을 또 띄우지 않는다.
-    if consume_unlock():
-        emit("allow", "사용자가 열어 둔 일회용 열쇠를 사용해 이번 한 번만 실행합니다. 열쇠는 지금 지워졌습니다.")
+    if consume_unlock(call_fingerprint(payload)):
+        emit("allow", "사용자가 열어 둔 일회용 열쇠를 사용해 실행합니다. 열쇠는 지금 지워졌으며, "
+                      "같은 쿼리의 재판정만 짧은 시간 안에 함께 통과합니다.")
         return 0
 
     emit("deny", (
