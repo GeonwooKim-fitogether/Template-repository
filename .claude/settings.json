@@ -26,7 +26,7 @@
         ]
       },
       {
-        "matcher": "mcp__Supabase__execute_sql|mcp__Supabase__apply_migration|mcp__github__actions_run_trigger",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
@@ -35,7 +35,7 @@
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "mcp__Supabase__execute_sql|mcp__Supabase__apply_migration|mcp__github__actions_run_trigger",
         "hooks": [
           {
             "type": "command",
