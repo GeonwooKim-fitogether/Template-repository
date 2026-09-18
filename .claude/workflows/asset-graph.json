@@ -67,6 +67,14 @@
         ".claude/rules/past-decisions.md",
         ".claude/rules/reference/past-decisions-history.md"
       ]
+    },
+    {
+      "name": "environment-separation",
+      "reason": "환경 분리 규칙과 상세 실행서가 함께 움직여야 규범과 실제 도입 절차가 갈라지지 않는다",
+      "members": [
+        ".claude/rules/environment-separation.md",
+        ".claude/rules/reference/environment-separation-runbook.md"
+      ]
     }
   ],
   "references": [
