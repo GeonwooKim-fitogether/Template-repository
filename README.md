@@ -124,6 +124,7 @@ PR이 열리거나 갱신될 때 자동으로 도는 검사들입니다. 사람�
 | `file-registry.yml` | 파일 등록부에 없는 새 파일(반발산 게이트) | 1단계(경고) |
 | `readme-skills.yml` | 스킬 폴더가 추가됐는데 README 표에 행이 없는 드리프트 (창고 전용) | 차단 |
 | `asset-graph.yml` | **자산 그래프 정합** — "함께 움직여야 하는" 자산 묶음(예: db-write 규칙 + 훅 + 설정)이 반쪽만 있는지, 문서가 가리키는 파일이 없는 죽은 참조인지, 규칙이 README 표에 빠졌는지를 `.claude/workflows/asset-graph.json`(정본 그래프) 기준으로 검사한다. 검사기는 `.claude/workflows/asset-graph-check.mjs`이고 동기화 봇이 하위 저장소로도 내려보낸다 | 1단계(경고) |
+| `environment-standard-check.yml` | **웹앱 환경 표준** — 환경 규칙·로컬 PostgreSQL Compose·환경변수 계약·DB 변경 요청서가 함께 있는지와 문법을 검사한다. AI/API 호출 없음 | 차단 |
 
 ### 게이트가 두 경로로 나뉘어 있는 이유
 
@@ -145,6 +146,7 @@ PR이 열리거나 갱신될 때 자동으로 도는 검사들입니다. 사람�
 | [`communication.md`](.claude/rules/communication.md) | **채팅·문서 어투** — 압축된 기호 나열 대신 완전한 문장으로, 결론을 먼저, 처음 보는 사람이 한 번에 이해하게 쓴다. 진행 상태를 부르는 세 단계 어휘(작업완료·검토대기·배포완료)와 완료 선언에 붙이는 노출 증명도 여기서 정한다. |
 | [`migration-naming.md`](.claude/rules/migration-naming.md) | **마이그레이션 파일명** — 데이터베이스 구조를 바꾸는 새 SQL 파일의 이름은 순번(`0090_...`)이 아니라 만든 시각(`YYYYMMDDHHMMSS_...`)으로 짓는다. 여러 세션이 병렬로 작업할 때 같은 번호를 집어 가는 충돌을 **git 이 잡지 못하기 때문**이다. |
 | [`db-write-permission.md`](.claude/rules/db-write-permission.md) | **데이터베이스 쓰기 승인** — 조회(`select`)는 확인 없이 실행하고, 데이터나 구조를 바꾸는 SQL 은 사용자가 그 쿼리를 보고 승인하기 전까지 실행하지 않는다. 부탁이 아니라 훅(`sql-write-guard.py`)이 실제로 막으며, 승인은 일회용 열쇠 파일로 표현된다. Supabase 에 연결된 저장소에 적용된다. |
+| [`environment-separation.md`](.claude/rules/environment-separation.md) | **환경 분리** — local·development·staging·production의 역할과 쓰기 권한을 나누고, 운영 변경은 마이그레이션·백업/복구 계획·사람 승인이 모두 있을 때만 실행한다. 운영 자격증명과 실제 데이터의 비운영 반출도 금지한다. |
 | [`upstream-first.md`](.claude/rules/upstream-first.md) | **공용 파일은 창고에서 고친다** — 고치기 전에 창고에 같은 경로의 파일이 있는지 확인하고, 있으면 그 저장소가 아니라 창고에서 고쳐 동기화로 내려보낸다. 아래에서 고치면 봇이 조용히 덮어쓰거나(동기화되는 파일) 저장소끼리 영구히 갈라진다(`.github/workflows/`). 이미 고쳐 버렸을 때의 역이식 절차도 여기서 정한다. |
 | [`stake-calibration.md`](.claude/rules/stake-calibration.md) | **판돈 규칙** — 엔진의 크기를 일의 크기에 맞춘다. 기본값은 요구를 만족하는 최저 티어(T0 직접 처리 ~ T3 스웜 검증)이고, 티어 상향은 명시 트리거(비가역·파급·목록형 검증·사용자의 "철저히")가 있을 때만이다. 쉬운 일에 무거운 엔진을 켜는 과잉을 막는 정본. |
 | [`escalation.md`](.claude/rules/escalation.md) | **에스컬레이션 규칙** — 언제 멈추고 언제 계속하나. 작은 결정은 기본값을 채택해 계속 진행하며 결정 큐에 1행만 남기고, 사람 관문 트리거(보안·라이브 DB·비가역 구조·범위 초과·비용·공개) 여섯에 해당하는 결정만 결정 카드 한 장으로 즉시 올린다. |
