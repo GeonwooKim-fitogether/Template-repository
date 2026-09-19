@@ -121,6 +121,26 @@
       "optional": false
     },
     {
+      "from": ".claude/agents/kimengexpert.md",
+      "to": ".claude/skills/hardware-map/SKILL.md",
+      "optional": false
+    },
+    {
+      "from": ".claude/agents/kimengexpert.md",
+      "to": ".claude/skills/firmware-map/SKILL.md",
+      "optional": false
+    },
+    {
+      "from": ".claude/agents/kimengexpert.md",
+      "to": ".claude/skills/drbfm-qa/SKILL.md",
+      "optional": false
+    },
+    {
+      "from": ".claude/agents/kimengexpert.md",
+      "to": ".claude/skills/ceo-brief/SKILL.md",
+      "optional": false
+    },
+    {
       "from": ".claude/commands/orchestrate.md",
       "to": ".claude/skills/ceo-brief/SKILL.md",
       "optional": false
