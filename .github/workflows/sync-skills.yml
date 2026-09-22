@@ -25,6 +25,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   sync:
@@ -152,14 +153,76 @@ jobs:
 
           rm -rf .skills-src
 
-      - name: 변경 사항 커밋 (있을 때만)
+      # ✚2026-09-22 · **main 에 직접 push 하지 않고 PR 을 연다.**
+      #
+      # 왜 바꿨나. 예전에는 이 단계가 main 으로 곧장 push 했다. 그런데 브랜치 보호를 켠
+      # 저장소에서는 그 push 가 거절된다 — Fitstack 에서 실제로 그렇게 됐다(2026-09-09 에
+      # 룰셋 `main 보호` 를 켰고, 봇이 실제로 내려보낼 것을 들고 온 첫 실행인 09-21 에
+      # `GH013: Repository rule violations found` 로 막혔다).
+      #
+      # 더 나쁜 것은 **12일간 아무도 몰랐다**는 점이다. 관문을 켠 뒤 봇이 두 번 돌았는데
+      # 둘 다 내려보낼 것이 없어 push 를 시도조차 하지 않았고("이미 최신 — 커밋 생략"),
+      # 그래서 조용히 초록불이었다. 즉 관문을 켠 날과 고장이 드러난 날 사이에 침묵이
+      # 있었다. 창고에서 만든 규칙이 아래로 도착하지 않는데 아무도 모르는 상태가 이
+      # 장치의 최악이다.
+      #
+      # 그래서 봇도 사람과 같은 길로 들어온다 — 브랜치에 올리고 PR 을 연다. 보호가 켜진
+      # 저장소에서도 막히지 않고, 무엇이 내려오는지 사람이 보고 머지한다.
+      - name: 변경 사항을 PR 로 올린다 (있을 때만)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYNC_BRANCH: chore/sync-warehouse
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [ -n "$(git status --porcelain .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/hooks .claude/settings.json)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add .claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/hooks .claude/settings.json
-            git commit -m "chore: FITogether 스킬·규칙·에이전트·커맨드·워크플로·허용목록 동기화 [skip ci]"
-            git push
-          else
-            echo "이미 최신 — 커밋 생략"
+          PATHS=".claude/skills .claude/rules .claude/agents .claude/commands .claude/workflows .claude/hooks .claude/settings.json"
+
+          if [ -z "$(git status --porcelain $PATHS)" ]; then
+            echo "이미 최신 — 올릴 것 없음"
+            exit 0
           fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 브랜치는 매 실행마다 "기본 브랜치 + 창고의 지금 상태"로 다시 만든다. 그래서
+          # 이 브랜치는 봇 소유이고 **사람이 손으로 고치지 않는다** — 다음 실행이 덮어쓴다.
+          # 커밋 메시지에 [skip ci] 를 넣지 않는다. 이제 검사가 돌아야 머지할 수 있다.
+          git checkout -B "$SYNC_BRANCH"
+          git add $PATHS
+          git commit -m "chore: 창고(Template-repository) 자산 동기화"
+          git push --force origin "$SYNC_BRANCH"
+
+          OPEN_PR=$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$OPEN_PR" ]; then
+            echo "이미 열려 있는 동기화 PR #$OPEN_PR 을 갱신했다."
+            exit 0
+          fi
+
+          # PR 본문은 heredoc 이 아니라 파일로 만든다. YAML 블록 스칼라(run: |) 안에서는
+          # 모든 줄이 들여쓰기를 유지해야 하는데, heredoc 본문을 열 0 에 두면 블록이 거기서
+          # 끝나 버리고 들여쓰면 그 공백이 본문에 그대로 들어간다.
+          {
+            echo "창고(Template-repository)의 공용 자산이 이 저장소보다 새로워서 동기화 봇이 연 PR 입니다."
+            echo "무엇이 내려오는지는 아래 변경 파일 목록이 전부입니다."
+            echo
+            echo "## 머지하는 법"
+            echo
+            echo "1. **Ready for review 를 눌러 주세요.** 지금은 초안이라 검사가 돌지 않습니다 — GitHub 이 봇이 만든 이벤트로는 검사를 돌리지 않기 때문입니다. 사람이 이 버튼을 누르면 그때 돕니다."
+            echo "2. 검사가 초록이면 머지합니다."
+            echo
+            echo "## 이 PR 을 손으로 고치지 마세요"
+            echo
+            echo "브랜치 chore/sync-warehouse 는 봇이 매주 **처음부터 다시 만듭니다.** 여기에 커밋을 더하면 다음 실행에서 사라집니다. 내용을 바꾸려면 창고에서 고치세요."
+          } > "$RUNNER_TEMP/sync-pr-body.md"
+
+          # **초안(draft)으로 여는 것이 핵심이다 — 지우지 말 것.**
+          #
+          # GitHub 은 GITHUB_TOKEN 이 만든 이벤트로는 워크플로를 새로 돌리지 않는다(무한
+          # 재귀 방지). 그래서 봇이 평범한 PR 을 열면 필수 검사가 **한 번도 돌지 않고**
+          # "expected" 로 멈춰, 그 PR 은 영원히 머지되지 않는다. 앞의 고장을 다른 모양으로
+          # 재현하는 셈이다.
+          #
+          # 초안으로 열면 사람이 Ready for review 를 누르는 순간 그 이벤트는 **사람의
+          # 것**이라 검사가 정상적으로 돈다. 각 저장소의 CI 가 ready_for_review 를 듣고
+          # 있어야 하므로, 듣지 않는 저장소는 그 한 줄을 더해야 한다.
+          gh pr create --draft --base "$DEFAULT_BRANCH" --head "$SYNC_BRANCH" --title "chore: 창고 자산 동기화 (스킬·규칙·에이전트·커맨드·훅)" --body-file "$RUNNER_TEMP/sync-pr-body.md"
