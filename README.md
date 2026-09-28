@@ -125,6 +125,7 @@ PR이 열리거나 갱신될 때 자동으로 도는 검사들입니다. 사람�
 | `readme-skills.yml` | 스킬 폴더가 추가됐는데 README 표에 행이 없는 드리프트 (창고 전용) | 차단 |
 | `asset-graph.yml` | **자산 그래프 정합** — "함께 움직여야 하는" 자산 묶음(예: db-write 규칙 + 훅 + 설정)이 반쪽만 있는지, 문서가 가리키는 파일이 없는 죽은 참조인지, 규칙이 README 표에 빠졌는지를 `.claude/workflows/asset-graph.json`(정본 그래프) 기준으로 검사한다. 검사기는 `.claude/workflows/asset-graph-check.mjs`이고 동기화 봇이 하위 저장소로도 내려보낸다 | 1단계(경고) |
 | `environment-standard-check.yml` | **웹앱 환경 표준** — 환경 규칙·로컬 PostgreSQL Compose·환경변수 계약·DB 변경 요청서가 함께 있는지와 문법을 검사한다. AI/API 호출 없음 | 차단 |
+| `branch-pr-policy.yml` | **브랜치·PR 정책** — PR 이 열리면 브랜치 이름(`<종류>/<슬러그>`)과 제목(`<종류>: …`) 형식을 검사하고, 머지되면 head 브랜치를 지우고, 매주 main 에 머지된 채 남은 브랜치를 지우며 14일 이상 방치된 열린 PR 을 잡 요약에 나열한다. 세션 안의 훅(`branch-guard.py`)이 닿지 못하는 클라우드 세션 브랜치와 세션이 끝난 뒤의 잔여물을 받는다. API 키 불필요 | 이름·제목: 차단 / 정리: 자동 |
 
 ### 게이트가 두 경로로 나뉘어 있는 이유
 
