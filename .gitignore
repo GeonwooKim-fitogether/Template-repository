@@ -27,3 +27,8 @@ _site/
 # 사용자가 승인한 그 순간에만 존재했다가 쓰이면 사라지는 파일이므로, 저장소에
 # 들어가면 안 된다. 커밋되는 순간 "항상 열려 있는 열쇠"가 되어 장치가 무력해진다.
 .claude/sql-write-unlock
+
+# 브랜치 훅(.claude/rules/branch-pr-naming.md)의 일회용 열쇠와 세션별 기록.
+# 열쇠는 위와 같은 이유로 커밋되면 안 되고, 기록은 이 컴퓨터의 세션에만 뜻이 있다.
+.claude/branch-unlock
+.claude/state/
