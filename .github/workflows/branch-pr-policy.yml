@@ -97,8 +97,11 @@ jobs:
           {
             echo "## 브랜치·PR 정책 — 이름과 제목"
             echo ""
-            echo "- $branch_note"
-            echo "- $title_note"
+            # 두 변수는 통과했을 때만 정해진다. `set -u` 아래에서 그대로 출력하면 위반이 하나라도
+            # 있을 때 여기서 unbound variable 로 죽어, 아래의 위반 코멘트와 "고칠 것" 요약이 한 번도
+            # 남지 않는다 — 통과하는 PR 만 봐서는 드러나지 않는 결함이었다(Fitstack 2026-10-01 재현).
+            [ -n "${branch_note:-}" ] && echo "- $branch_note"
+            [ -n "${title_note:-}" ] && echo "- $title_note"
             [ -n "$long_note" ] && echo "- $long_note"
             if [ "${#problems[@]}" -gt 0 ]; then
               echo ""
