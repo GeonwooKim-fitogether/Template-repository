@@ -1,0 +1,41 @@
+# 브랜치·PR 검사 — 호출부
+#
+# 이 파일을 저장소의 `.github/workflows/pr-gate-check.yml` 로 복사한다. 검사의 본체는 창고의
+# `.github/workflows/pr-gate-check.yml` 이고, 이 파일은 그것을 **불러 쓰기만** 한다. 그래서 창고를
+# 고치면 다음 실행부터 이 저장소에도 반영되고, 이 파일을 다시 손댈 일은 거의 없다.
+# (왜 복사가 아니라 참조인지는 창고 파일의 머리말에 있다.)
+#
+# 복사하기 전에 한 가지. 이 저장소의 룰셋이 `gate` 를 머지 필수 검사로 걸고 있으면, 체크 이름이
+# `gate / gate` 로 바뀌므로 **룰셋의 이름을 먼저 고친다**(Settings → Rules → Rulesets). 순서를
+# 바꾸면 필수 검사가 영원히 "대기 중"이 되어 모든 머지가 선다.
+
+name: 브랜치·PR 검사
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+    # synchronize 는 일부러 뺐다 — 새 커밋은 push 사건이 이미 받는다.
+    types: [opened, reopened, edited]
+  workflow_dispatch: {}
+
+concurrency:
+  group: pr-checks-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+# 본체가 쓰는 권한. 셋 다 있어야 한다 — 빠지면 본체의 코멘트·체크 단계가 거절된다.
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  # 잡 이름이 체크 이름의 앞부분이 된다("gate / gate"). 바꾸면 룰셋도 함께 바꾼다.
+  gate:
+    uses: GeonwooKim-fitogether/Template-repository/.github/workflows/pr-gate-check.yml@main
+    # 이 저장소에만 있는 경고성 검사가 있으면 그 스크립트 경로를 넘긴다(약속은 본체의 그 단계 주석).
+    # 게이트를 차단(2단계)으로 올리려면 strict: true.
+    # with:
+    #   extra_check: scripts/e2e-budget.mjs
+    #   strict: false
