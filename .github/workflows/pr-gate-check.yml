@@ -247,14 +247,22 @@ jobs:
   gate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # 같은 브랜치의 push 와 PR 사건이 몰리면 앞 실행을 취소한다. 어느 쪽이 남아도 전부를 본다 —
-    # push 실행도 그 브랜치의 열린 PR 을 찾아 이름·본문까지 보기 때문이다. 잡 수준에 두는 이유는
+    # 같은 브랜치의 push 와 PR 사건이 몰리면 **취소하지 않고 차례로 돈다**(앞 실행이 끝나면 다음).
+    # 처음에는 cancel-in-progress: true 로 앞 실행을 취소했다. 그런데 브랜치를 올리고 곧바로 PR 을
+    # 열면(세션이 늘 그렇게 한다) push 실행이 매번 "cancelled" 로 남아 머지 화면에 실패처럼 보였고,
+    # 필수 검사가 있는 저장소에서는 그 취소가 다른 실행의 결과와 겹쳐 머지 버튼을 잠근 일도 있었다
+    # (Fitstack #444, 2026-10-02). 차례로 돌면 둘 다 끝까지 돌아 같은 결과를 남긴다. 비용은 같다 —
+    # 취소된 실행도 이미 1분 단위로 청구되고 있었다. 다만 대기열에는 하나만 남으므로, 셋 이상이
+    # 한꺼번에 몰리면 기다리던 것이 새것에 밀려 취소될 수 있다(드물다).
+    # 어느 실행이든 전부를 본다 — push 실행도 그 브랜치의 열린 PR 을 찾아 이름·본문까지 보기
+    # 때문이다. 같은 그룹에 두는 이유는 두 실행이 동시에 같은 코멘트를 고쳐 쓰다 겹치지 않게 하려는
+    # 것이다. 잡 수준에 두는 이유는
     # 재사용으로 불릴 때 워크플로 수준의 concurrency 는 호출부의 것만 쓰이기 때문이다. 그래서
     # **호출부에는 concurrency 를 두지 않는다** — 같은 이름의 그룹이 호출부(워크플로 수준)와 여기
     # (잡 수준)에 함께 있으면 GitHub 이 교착으로 보고 실행을 취소한다(호출부 견본에 적어 두었다).
     concurrency:
       group: pr-checks-${{ github.head_ref || github.ref_name }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
