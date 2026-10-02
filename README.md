@@ -114,6 +114,8 @@ FITogether 팀의 **Claude Code 공용 자산 창고 + 새 프로젝트 템플�
 > 푸시를 거절하기 때문입니다. 그래서 **PR 검사(`pr-gate-check.yml`)는 복사하지 않고 불러 씁니다**:
 > 저장소에는 `templates/workflows/pr-checks.yml` 을 복사한 10줄짜리 호출부만 두고, 본체는 창고의
 > 파일을 `workflow_call` 로 가리킵니다. 창고를 고치면 다음 실행부터 모든 저장소에 반영됩니다.
+> `gate / gate` 를 머지 필수 검사로 건 저장소는 짝 파일 `templates/workflows/pr-checks-bot-ready.yml` 도
+> 함께 복사합니다 — 동기화 봇이 연 초안 PR 이 Ready 가 될 때 검사를 돌리는 호출부입니다.
 > 그 밖의 워크플로(정리 봇·동기화 봇)는 여전히 저장소마다 **직접 넣어야** 합니다("Use this template"로
 > 새로 만든 repo는 함께 물려받습니다). 봇은 돌 때마다 창고와 다른 워크플로를 경고로 알립니다.
 
