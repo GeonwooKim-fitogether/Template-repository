@@ -5,9 +5,15 @@
 # 고치면 다음 실행부터 이 저장소에도 반영되고, 이 파일을 다시 손댈 일은 거의 없다.
 # (왜 복사가 아니라 참조인지는 창고 파일의 머리말에 있다.)
 #
-# 복사하기 전에 한 가지. 이 저장소의 룰셋이 `gate` 를 머지 필수 검사로 걸고 있으면, 체크 이름이
-# `gate / gate` 로 바뀌므로 **룰셋의 이름을 먼저 고친다**(Settings → Rules → Rulesets). 순서를
-# 바꾸면 필수 검사가 영원히 "대기 중"이 되어 모든 머지가 선다.
+# 필수 검사와의 순서. 이 저장소의 룰셋이 `gate` 를 머지 필수 검사로 걸고 있으면, 이 파일로
+# 바꾼 뒤 체크 이름이 `gate / gate` 가 된다. 그래서 순서는 ① 이 파일로 바꾸는 PR 을 연다 →
+# ② 그 PR 에서 `gate / gate` 가 초록이 되면 룰셋(Settings → Rules → Rulesets)의 `gate` 를
+# `gate / gate` 로 바꾼다 → ③ 곧바로 그 PR 을 머지한다. 룰셋을 먼저 바꾸면 그 이름의 검사가 아직
+# 없어 모든 PR 의 머지가 선다(Fitstack 2026-10-02 실측 순서).
+#
+# **concurrency 를 이 파일에 두지 않는다.** 본체가 잡 수준에서 `pr-checks-<브랜치>` 그룹으로 앞
+# 실행을 취소한다. 호출부에 같은 이름의 그룹을 두면 GitHub 이 호출부와 본체 사이의 교착으로
+# 보고 실행을 취소한다. (처음 판에는 이 블록이 있었다 — 2026-10-02 에 뺐다.)
 
 name: 브랜치·PR 검사
 
@@ -19,10 +25,6 @@ on:
     # synchronize 는 일부러 뺐다 — 새 커밋은 push 사건이 이미 받는다.
     types: [opened, reopened, edited]
   workflow_dispatch: {}
-
-concurrency:
-  group: pr-checks-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
 
 # 본체가 쓰는 권한. 셋 다 있어야 한다 — 빠지면 본체의 코멘트·체크 단계가 거절된다.
 permissions:
