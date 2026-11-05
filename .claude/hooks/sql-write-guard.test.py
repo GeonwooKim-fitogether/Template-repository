@@ -323,6 +323,17 @@ def check_bash_gate() -> int:
         'bash -c "sh selfhost/apply-migration.sh"',
         "python3 selfhost/ssm-sql.py apply",
         "./selfhost/ssm-sql.py query",
+        # 도구의 하위 명령 통로 (2026-11-05, FitOps 의 Prisma 와 Fitstack 의 옛 supabase CLI)
+        "npx prisma db push",
+        "DIRECT_URL=postgres://x npx prisma db push --accept-data-loss",
+        "npx prisma --schema prisma/schema.prisma db push",
+        "pnpm exec prisma migrate deploy",
+        "npx prisma migrate reset --force",
+        "npx prisma migrate resolve --applied 0_init",
+        "npx prisma db execute --file x.sql",
+        "cd /home/user/fitops && npx prisma db push",
+        "npx supabase db push",
+        "supabase db push",
     ):
         out = run_hook({"tool_name": "Bash", "tool_input": {"command": command}})
         if decision_of(out) != "deny":
@@ -344,6 +355,17 @@ def check_bash_gate() -> int:
         "python3 scripts/migration-object-probe.mjs --emit-sql",
         'python3 -c "print(1)"',
         "cat selfhost/ssm-sql.py",
+        # 패키지 실행기를 감싸개로 본 뒤에도 평범한 작업은 그대로 통과해야 한다.
+        "pnpm check",
+        "npm run test",
+        "npx vitest run",
+        "npx prisma generate",
+        "npx prisma migrate diff --from-url x --to-schema-datamodel prisma/schema.prisma --script",
+        "npx prisma migrate status",
+        "npx prisma migrate dev --create-only",
+        "supabase start",
+        'grep -n "db push" CLAUDE.md',
+        "cat prisma/schema.prisma",
     ):
         out = run_hook({"tool_name": "Bash", "tool_input": {"command": command}})
         if out:
