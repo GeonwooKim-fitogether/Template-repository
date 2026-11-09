@@ -92,6 +92,14 @@
         ".claude/rules/parallel-work.md",
         ".claude/rules/reference/parallel-work-history.md"
       ]
+    },
+    {
+      "name": "rule-appendix-ui-standard",
+      "reason": "규범 코어가 부록을 링크한다 — 코어만 있고 부록이 없으면 죽은 링크",
+      "members": [
+        ".claude/rules/fitogether-ui-standard.md",
+        ".claude/rules/reference/fitogether-ui-standard-history.md"
+      ]
     }
   ],
   "references": [
@@ -155,6 +163,26 @@
     {
       "from": ".claude/rules/parallel-work.md",
       "to": ".claude/rules/escalation.md",
+      "optional": false
+    },
+    {
+      "from": ".claude/rules/fitogether-ui-standard.md",
+      "to": ".claude/commands/orchestrate.md",
+      "optional": false
+    },
+    {
+      "from": ".claude/commands/orchestrate.md",
+      "to": ".claude/rules/fitogether-ui-standard.md",
+      "optional": false
+    },
+    {
+      "from": ".claude/agents/kimdesigner.md",
+      "to": ".claude/rules/fitogether-ui-standard.md",
+      "optional": false
+    },
+    {
+      "from": ".claude/agents/kimdeveloper.md",
+      "to": ".claude/rules/fitogether-ui-standard.md",
       "optional": false
     }
   ]
