@@ -594,7 +594,7 @@ def classify(query: str):
         return False, "읽기 전용 쿼리가 아닙니다 — 쿼리가 비어 있어 무엇을 실행하는지 판단할 수 없습니다"
 
     for statement in statements:
-        first = re.split(r"[\s(]+", statement.lstrip("("), 1)[0].lower()
+        first = re.split(r"[\s(]+", statement.lstrip("("), maxsplit=1)[0].lower()
         if first not in READ_STARTERS:
             return False, f"읽기 전용 쿼리가 아닙니다 — 조회로 시작하지 않는 문장이 있습니다 ({first})"
 
@@ -617,6 +617,15 @@ def emit(decision: str, reason: str) -> None:
 
 
 def main() -> int:
+    # 한국어 Windows 는 파이프의 기본 인코딩이 cp949 다. 그대로 두면 판정문의 줄표(—) 같은
+    # 글자를 내보내다 훅이 죽고(exit 1 — Claude Code 는 판정 없이 도구를 그대로 실행한다),
+    # 입력의 한글이 깨져 명령·경로 대조가 빗나간다. Claude Code 는 UTF-8 JSON 으로 주고받으므로
+    # 세 통로를 모두 UTF-8 로 고정한다. (2026-11-09 실측, 규칙 부록 db-write-permission-history.md)
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     try:
         payload = json.load(sys.stdin)
     except Exception:
