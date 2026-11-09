@@ -594,7 +594,7 @@ def classify(query: str):
         return False, "읽기 전용 쿼리가 아닙니다 — 쿼리가 비어 있어 무엇을 실행하는지 판단할 수 없습니다"
 
     for statement in statements:
-        first = re.split(r"[\s(]+", statement.lstrip("("), 1)[0].lower()
+        first = re.split(r"[\s(]+", statement.lstrip("("), maxsplit=1)[0].lower()
         if first not in READ_STARTERS:
             return False, f"읽기 전용 쿼리가 아닙니다 — 조회로 시작하지 않는 문장이 있습니다 ({first})"
 
