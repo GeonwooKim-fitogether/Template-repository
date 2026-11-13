@@ -1,0 +1,13 @@
+{
+  "$comment": "용어표 견본. 쓰는 저장소는 이 파일을 .claude/terms.json 으로 복사하고, 사용자와 정한 말만 남긴다. terms-guard.py 가 banned 의 말을 Write · Edit · Artifact 에서 막는다. 규칙: .claude/rules/report-format.md 2절",
+  "agreed": [
+    {"term": "Raw data", "meaning": "가공하지 않은 측정 기록", "source": "시험 문서"}
+  ],
+  "banned": [
+    {"word": "원값", "instead": "Raw data", "decision": "2026-11-13 사용자 지시"},
+    {"word": "모터 없음", "decision": "2026-11-13 사용자 지시, 정한 운전 이름으로 쓴다"},
+    {"word": "판", "pattern": "(?<![가-힣])판(?![가-힣])", "decision": "2026-11-13 사용자 지시"},
+    {"word": "정본", "instead": "시험 문서", "decision": "2026-11-13 사용자 지시"}
+  ],
+  "exclude": ["docs/lessons.md"]
+}
