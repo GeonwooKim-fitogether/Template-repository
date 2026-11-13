@@ -26,6 +26,24 @@
         ]
       },
       {
+        "matcher": "Write|Edit|NotebookEdit|Artifact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/terms-guard.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Artifact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/report-format-guard.py"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {

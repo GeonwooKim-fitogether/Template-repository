@@ -1,0 +1,29 @@
+{
+  "$comment": "보고 양식 견본: 시험별 현황 표. 쓰는 저장소는 이 파일을 .claude/report-formats/test-status.json 으로 복사하고, 사용자와 합의한 뒤 PR 로 넣는다. 규칙: .claude/rules/report-format.md 3절",
+  "name": "test-status",
+  "title": "시험별 현황",
+  "version": 1,
+  "header": {
+    "subject": "시험 이름",
+    "subject_style": "큰 글씨, 왼쪽",
+    "conclusion": "결론",
+    "conclusion_style": "같은 줄 오른쪽 끝, 한 줄"
+  },
+  "columns": ["대분류", "중분류", "내용", "합의", "진행"],
+  "category_column": "대분류",
+  "categories": ["목적", "목표", "시험 조건", "절차", "합격 기준", "결과", "이슈", "다음"],
+  "column_values": {
+    "합의": ["완료", "진행", "예정", "미정"],
+    "진행": ["완료", "진행", "예정", "미정"]
+  },
+  "cell": {"max_lines": 2, "no_sentence": true},
+  "history": [
+    {
+      "version": 1,
+      "date": "2026-11-13",
+      "change": "처음 합의. 열 다섯 · 대분류 여덟 · 머리 배치",
+      "agreed_by": "사용자",
+      "pr": "Template-repository#109"
+    }
+  ]
+}
