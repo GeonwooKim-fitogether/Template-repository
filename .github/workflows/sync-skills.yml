@@ -138,16 +138,24 @@ jobs:
           # 항목을 이 repo 것에 더하고 중복은 없앤다. 훅 설정만 내려오고 스크립트 파일이
           # 없으면 없는 파일을 부르게 되므로, 위에서 .claude/hooks/ 폴더를 먼저 복사한다.
           # 둘은 항상 같은 실행에서 함께 내려온다.
+          #
+          # ✚2026-11-18 · 훅 목록의 중복 제거에 `unique` 를 쓰지 않는다.
+          # `unique` 는 중복을 없애면서 목록을 **정렬까지** 한다. 그래서 내용이 같아도 사람이
+          # 정한 순서와 다르면 "변경"으로 잡혀, 봇이 순서만 바꾼 PR 을 매주 열었다(창고 자신의
+          # 동기화 PR #100 이 훅 5개의 순서만 바꾼 것이 그 예다). `dedupe` 는 이 repo 의 기존
+          # 순서를 그대로 두고, 창고에만 있는 항목을 뒤에 붙인다. permissions 는 원래 정렬된
+          # 목록이라 그대로 `unique` 를 쓴다.
           if [ -f .skills-src/.claude/settings.json ]; then
             [ -f .claude/settings.json ] || echo '{}' > .claude/settings.json
             jq -s '
+              def dedupe: reduce .[] as $x ([]; if any(.[]; . == $x) then . else . + [$x] end);
               .[0] as $mine
               | .[1] as $warehouse
               | ["allow", "ask", "deny"] as $keys
               | (
                   reduce (($warehouse.hooks // {}) | keys_unsorted[]) as $event
                     (($mine.hooks // {});
-                     .[$event] = (((.[$event] // []) + $warehouse.hooks[$event]) | unique))
+                     .[$event] = (((.[$event] // []) + $warehouse.hooks[$event]) | dedupe))
                 ) as $hooks
               | $mine
               | .permissions = ((.permissions // {}) + (
