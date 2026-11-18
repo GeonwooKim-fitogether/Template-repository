@@ -213,6 +213,11 @@
       "optional": false
     },
     {
+      "from": ".claude/rules/communication.md",
+      "to": ".claude/skills/ceo-brief/SKILL.md",
+      "optional": false
+    },
+    {
       "from": ".claude/rules/report-format.md",
       "to": ".claude/skills/ceo-brief/SKILL.md",
       "optional": false
