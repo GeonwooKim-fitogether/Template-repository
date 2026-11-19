@@ -50,6 +50,7 @@
 import json
 import os
 import sys
+import textwrap
 
 MIGRATION_TOOL_SUFFIX = "__apply_migration"
 DEV_DB_FILENAME = "dev-db.json"
@@ -112,7 +113,10 @@ def read_steps(cfg: dict):
         return DEFAULT_STEPS, where, (
             f"{doc} 에서 `{start}` … `{end}` 표지를 찾지 못해 기본 목록을 보였습니다 — 표지를 확인하십시오."
         )
-    return text[i + len(start):j].strip(), where, None
+    # 문서에서는 번호 목록 안에 들여 쓴 구간이라, 들여쓰기를 걷어 내고 넣는다. Windows 에서 받은
+    # 문서는 줄 끝이 CRLF 일 수 있어 먼저 LF 로 맞춘다.
+    block = text[i + len(start):j].replace("\r\n", "\n").strip("\n")
+    return textwrap.dedent(block).strip(), where, None
 
 
 def main() -> int:

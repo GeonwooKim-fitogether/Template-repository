@@ -32,7 +32,9 @@ CP949_ENV = {**os.environ, "PYTHONIOENCODING": "cp949", "PYTHONUTF8": "0"}
 
 DESKTOP = "mcp__2697e772-cf1b-40ff-9116-9515d43dc978__apply_migration"
 DOC_STEPS = "1. 실데이터로 실행하고 되돌린다 — 표지 안의 문장"
-DOC = f"# 절차\n\n앞 문단\n\n<!-- session-verify:start -->\n{DOC_STEPS}\n<!-- session-verify:end -->\n\n뒤 문단\n"
+# 실제 절차 문서처럼 번호 목록 안에 들여 쓴 구간 — 훅은 들여쓰기를 걷어 내고 넣어야 한다.
+DOC = (f"# 절차\n\n앞 문단\n\n1. 단계\n\n   <!-- session-verify:start -->\n   {DOC_STEPS}\n"
+       f"   <!-- session-verify:end -->\n\n뒤 문단\n")
 CFG = {
     "dev_projects": [{"id": "p-dev", "name": "시험-dev"}],
     "verify_steps": {"doc": "docs/proc.md", "block": "session-verify"},
@@ -92,6 +94,8 @@ def main() -> int:
                 fail(f"{tool}: 문서의 목록·대상·이름이 문맥에 없다: {ctx!r}")
             elif "앞 문단" in ctx or "뒤 문단" in ctx:
                 fail(f"{tool}: 표지 밖의 문장까지 옮겼다: {ctx!r}")
+            elif f"\n{DOC_STEPS}" not in ctx:
+                fail(f"{tool}: 구간의 들여쓰기를 걷어 내지 않았다: {ctx!r}")
 
     print("[침묵] 개발 DB 적용이 아니면 아무것도 내지 않는다")
     with tempfile.TemporaryDirectory() as tmp:
