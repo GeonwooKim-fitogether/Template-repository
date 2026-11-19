@@ -122,6 +122,16 @@ def main() -> int:
             code, ctx = run(make_root(tmp, doc=doc), apply_payload())
             if code != 0 or not ctx or "주의:" not in ctx or "dev-verified" not in ctx:
                 fail(f"{why}: 기본 목록과 경고가 없다 (코드 {code}): {ctx!r}")
+            # 사람에게 로그인을 부탁하지 않는다 — 로그인이 꼭 필요하면 지휘 세션에 먼저 묻는다(2026-11-19).
+            elif "로그인해 주세요" in ctx or "지휘 세션" not in ctx:
+                fail(f"{why}: 사람에게 로그인을 부탁하거나 지휘 세션에 묻는 안내가 없다: {ctx!r}")
+
+    print("[원칙] 머리 안내문은 사람 몫을 라벨·머지로만 적는다")
+    with tempfile.TemporaryDirectory() as tmp:
+        code, ctx = run(make_root(tmp), apply_payload())
+        head = (ctx or "").split("\n\n", 1)[0]
+        if "로그인 비밀번호 입력" in head or "지휘 세션" not in head:
+            fail(f"머리 안내문이 사람에게 로그인을 남기거나 지휘 세션을 말하지 않는다: {head!r}")
 
     print("[입력 깨짐] 읽을 수 없는 입력에는 0 으로 물러난다")
     with tempfile.TemporaryDirectory() as tmp:
