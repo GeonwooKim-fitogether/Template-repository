@@ -67,30 +67,16 @@ argument-hint: [선택 — 특정 파트만(change/home/quality/specification/pr
 
 따라서 회차를 돌 때마다 두 가지를 지킨다.
 
-1. **사실을 다시 모은다.** §2의 입력을 새로 읽어 `board.json`을 갱신한다. 자동 수집(`.integration/board.map.json`이 있는 저장소)이 켜져 있으면 그 최신 수집분을 쓴다.
+1. **사실을 다시 모은다.** §2의 입력을 새로 읽어 `board.json`을 갱신한다.
 2. **기준 시각을 글로 밝힌다.** 브리프의 이야기 문단(또는 0건 회차의 한 줄)에 사실을 수집한 날짜를 적는다. 화면이 말하지 못하는 것을 글이 말한다.
 
 ### 4-2. 현황판(부록) 렌더
 
-- **정식 종합은 매번 HTML을 새로 쓰지 않는다.** 모은 사실을 `.integration/board.json`에 **스키마대로** 적은 뒤, `integration-board` 스킬의 고정 엔진으로 렌더한다.
+- **GitHub Pages 통합 현황판(`integration-board` 스킬과 그 게시 워크플로)은 2026-10-15 결정으로 폐기됐다.** 현황판은 Vercel 에서 본다. 부록으로 링크할 현황판이 있으면 그 주소를 쓰고, 없으면 브리프만 올린다.
 
-  ```
-  python3 .claude/skills/integration-board/assets/integration_board_engine.py \
-    --config .integration/board.config.json \
-    --data   .integration/board.json \
-    --out    integration-board.html
-  ```
-
-  이 현황판을 처음 쓴다면 사람용 [사용 안내서](../skills/integration-board/USER-GUIDE.html)를 브라우저로 먼저 열어 보라. **총괄에게 보드를 올릴 때는 [읽는 법](../skills/integration-board/READING-GUIDE.html)을 함께 건넨다** — 3~5분 읽기 절차와, 위험 카드의 해소 작업 표시(있음·없음·미보고)를 무엇으로 읽는지가 거기 있다. 항목 하나하나의 규격과 지표 목록은 [`.claude/skills/integration-board/reference/board-schema.md`](../skills/integration-board/reference/board-schema.md)에 있다. 이렇게 하는 이유는 세 가지다. 첫째, 판이 매번 같아 총괄이 매번 새로 해석하지 않아도 된다. 둘째, 판정·건수·롤업을 엔진이 계산하므로 숫자를 손으로 옮겨 적다 틀릴 일이 없다. 셋째, data 스키마에 자유 서술 필드가 없어 보고서가 산문으로 불어나지 않는다.
-
-  **저장소에 자동 수집이 켜져 있으면 사실을 네가 모으지 않는다.** `.integration/board.map.json`이 있으면 그 저장소는 사건마다 `board-collect.mjs`가 GitHub에서 사실을 모아 보드를 Pages에 게시하고 있다는 뜻이다. 그때 네 일은 사실 수집이 아니라 **그 보드를 근거로 결정 큐를 짜는 것**이다. 켜는 법과 규격은 [`board-collect.md`](../skills/integration-board/reference/board-collect.md)에 있다.
-
-  **네가 채우는 것은 사실뿐이다** — 작업 목록·상태·날짜·검사 위반. 판정("위험"), 건수("결정 필요 2건"), 요약문을 data에 적으려 하면 엔진이 거부한다. 그것들은 도출값이다. 프로젝트에 `.integration/board.config.json`이 아직 없으면 스킬의 `assets/board.config.example.json`을 복사해 그 프로젝트 어휘로 채운 뒤 시작한다.
-
-- **결정 큐는 보드의 "결정 필요" 카드와 짝이 맞아야 한다.** 총괄이 답해야 진행되는 항목은 config의 카드에 `decide: true`로 선언해 두고, **그 항목의 이야기·선택지·권고안은 결정 브리프(4-0)가 맡는다.** 보드는 "무엇이 걸렸나"를, 브리프는 "무슨 일이 있었고 그래서 무엇을 답해야 하나"를 맡는다.
+- **결정 큐는 보드의 "결정 필요" 표시와 짝이 맞아야 한다.** **그 항목의 이야기·선택지·권고안은 결정 브리프(4-0)가 맡는다.** 보드는 "무엇이 걸렸나"를, 브리프는 "무슨 일이 있었고 그래서 무엇을 답해야 하나"를 맡는다.
 - **가벼운 갱신은 채팅 몇 줄로** 족하다. 판돈에 맞춘다 — 사소한 상태 확인에 매번 보드를 다시 렌더하지 않는다.
 - 아티팩트를 갱신할 때는 **같은 파일 경로로 재게시**해 링크가 바뀌지 않게 한다. 브리프와 보드 각각 같은 경로를 유지한다.
-- **`.integration/` 설정을 저장소에 커밋한다.** `board.config.json`과 `board.json`은 동기화 대상이 아니라 그 저장소가 소유하는 파일이라, 커밋하지 않으면 세션 종료와 함께 사라지고 다음 회차에 초안 보드가 나온다 — 그러면 "매 실행 같은 판"이라는 약속이 깨지고 총괄이 본 화면이 재현 불가가 된다. 이것이 이 절차에서 가장 자주 빠뜨리는 단계다.
 
 ### 4-3. 회차 말미에 측정 한 줄을 남긴다
 
